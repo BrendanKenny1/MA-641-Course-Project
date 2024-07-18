@@ -1,0 +1,135 @@
+---
+title: "MA641 Project Scratch"
+author: "Brianna Cirillo"
+output: html_notebook
+---
+
+```{r}
+# Load necessary libraries
+library(forecast)
+library(tseries)
+```
+
+
+```{r}
+# Load in the data
+data <- read.csv("FRED_monthly_retail_sales.csv",header=T)
+data1<- data$RSXFSN
+```
+
+```{r}
+# Create a time series object
+ae <- ts(data1, frequency = 12, start = c(2018, 12))
+
+# Plot the time series
+plot(window(ae, start = c(2018, 12)), ylab = 'Unemployment Rate')
+
+```
+
+
+```{r}
+# Plot ACF
+acf(as.vector(ae), lag.max = 85)
+```
+
+
+```{r}
+# Seasonal differencing
+plot(diff(ae, lag = 12), ylab = 'First Seasonal Difference', xlab = 'Time')
+acf(as.vector(diff(ae, lag = 12)), lag.max = 85)
+```
+
+
+```{r}
+# Non-seasonal differencing
+plot(diff(diff(ae, lag = 12)), ylab = 'First Non-Seasonal Difference', xlab = 'Time')
+acf(as.vector(diff(diff(ae, lag = 12))), lag.max = 36)
+```
+
+
+```{r}
+# Plot PACF
+pacf(as.vector(diff(diff(ae, lag = 12))), lag.max = 85)
+```
+
+ 
+
+```{r}
+# Conduct Augmented Dickey-Fuller test
+adf_test <- adf.test(diff(diff(ae, lag = 12)))
+print(adf_test)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
