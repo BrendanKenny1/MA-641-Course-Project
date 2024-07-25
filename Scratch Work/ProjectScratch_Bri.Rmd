@@ -4,67 +4,248 @@ author: "Brianna Cirillo"
 output: html_notebook
 ---
 
+### Libraries
+
 ```{r}
 # Load necessary libraries
 library(forecast)
 library(tseries)
+library(tidyverse)
 ```
+ 
 
+## FRED Monthly Retail Sales
+### Load & Inspect the Data
 
 ```{r}
 # Load in the data
-data <- read.csv("FRED_monthly_retail_sales.csv",header=T)
-data1<- data$RSXFSN
+data <- read.csv("~/Documents/GitHub/MA-641-Course-Project/FRED_monthly_retail_sales.csv",header=T)
+
+# Convert the date column to Date type
+data$DATE <- as.Date(data$DATE, format="%Y-%m-%d")
+
+# Inspect the data
+head(data)
+summary(data)
 ```
+
+- The dataset spans from January 2018 to May 2024, covering over six years of monthly data.
+- The retail sales values range from 376,261 to 668,957.
+- The median and mean values are close to each other (around 518,800), suggesting a symmetric distribution.
+- The interquartile range (IQR) is the difference between the 3rd and 1st quartiles (592,577 - 455,157 = 137,420), which measures the spread of the middle 50% of the data.
+- There is a noticeable increase in retail sales over time, as indicated by the higher values in the upper quartiles compared to the lower quartiles.
+
+
+### Create a Time Series Object
 
 ```{r}
 # Create a time series object
-ae <- ts(data1, frequency = 12, start = c(2018, 12))
-
-# Plot the time series
-plot(window(ae, start = c(2018, 12)), ylab = 'Unemployment Rate')
+ts_data <- ts(data$RSXFSN, start=c(2018, 12), frequency=12)
 
 ```
 
 
+### Descriptive Analysis
+
 ```{r}
-# Plot ACF
-acf(as.vector(ae), lag.max = 85)
+# Descriptive Analysis
+plot(ts_data, main="Monthly Retail Sales", ylab="Sales", xlab="Time")
+summary(ts_data)
+boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Retail Sales", ylab="Sales")
+
 ```
 
 
+Time Series Plot:
+
+
+- There is an upward trend in retail sales over the period from 2018 to 2024. This indicates that retail sales have been generally increasing over time.
+- There are repeating patterns within each year, indicative of seasonality.
+- The amplitude of fluctuations increases over time, indicating growing volatility in sales.
+
+Seasonal Boxplots:
+
+
+- There is evident seasonal variation in monthly retail sales. For example, January (month 1) tends to have lower sales, while November (month 11) shows higher sales.
+- The interquartile range (IQR) and the median values vary significantly across months, indicating changes in sales patterns throughout the year.
+- The presence of outliers can indicate unusual sales activity in certain months.
+- November has the highest median sales, indicating consistently higher sales in this month.
+
+
+### ACF and PACF Plot
+
 ```{r}
-# Seasonal differencing
-plot(diff(ae, lag = 12), ylab = 'First Seasonal Difference', xlab = 'Time')
-acf(as.vector(diff(ae, lag = 12)), lag.max = 85)
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(ts_data, main="ACF of Monthly Retail Sales")
+pacf(ts_data, main="PACF of Monthly Retail Sales")
 ```
 
 
+ACF:
+
+
+- The ACF plot shows significant autocorrelation at multiple lags, with the autocorrelation values gradually decreasing. This is indicative of a trend component in the data.
+- The significant autocorrelations at the first few lags suggest that the past values have a strong influence on the current value of the series.
+- The slow decay of the ACF values is typical of non-stationary time series data, where the mean and variance are not constant over time. This pattern suggests that the time series might benefit from differencing to achieve stationarity.
+- There is also a noticeable seasonal pattern, as indicated by the peaks at regular intervals (around lag 12 and multiples), which is consistent with the monthly data having a yearly seasonal component.
+
+PACF:
+
+
+- The PACF plot shows a significant spike at lag 1, with values dropping off sharply afterward. This indicates that an AR(1) component might be appropriate for the model.
+- The sharp drop after the first lag in the PACF plot is typical of an autoregressive process, suggesting that the AR component is sufficient to explain the dependencies in the series.
+- There is also a smaller spike at lag 12, which supports the presence of seasonality in the data.
+
+
+### Augmented Dickey-Fuller Test
+
 ```{r}
-# Non-seasonal differencing
-plot(diff(diff(ae, lag = 12)), ylab = 'First Non-Seasonal Difference', xlab = 'Time')
-acf(as.vector(diff(diff(ae, lag = 12))), lag.max = 36)
-```
-
-
-```{r}
-# Plot PACF
-pacf(as.vector(diff(diff(ae, lag = 12))), lag.max = 85)
-```
-
- 
-
-```{r}
-# Conduct Augmented Dickey-Fuller test
-adf_test <- adf.test(diff(diff(ae, lag = 12)))
+# Augmented Dickey-Fuller Test
+adf_test <- adf.test(ts_data, alternative="stationary")
 print(adf_test)
 ```
 
 
+- The p-value is 0.3911, which is greater than the significance level of 0.05. This means that we fail to reject the null hypothesis at these levels.
+- We do not have enough evidence to reject the null hypothesis of non-stationarity. Therefore, we conclude that the time series ts_data is non-stationary.
+- Since the time series is non-stationary, we need to make it stationary for modeling purposes. 
 
 
 
+```{r}
+# Differencing the series if it is not stationary
+if (adf_test$p.value > 0.05) {
+  ts_data_diff <- diff(ts_data, differences=1)
+  adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
+  print(adf_test_diff)
+  
+  # Update the time series data to the differenced series
+  ts_data <- ts_data_diff
+}
+```
 
+- The p-value is 0.01, which means that we reject the null hypothesis at these levels. Therefore, we conclude that the differenced time series ts_data_diff is stationary.
+
+### MA Model
+
+```{r}
+# Fit an MA model
+ma_model <- Arima(ts_data, order=c(0,0,1))
+summary(ma_model)
+```
+
+
+- The ma1 coefficient is significant, indicating that the moving average term is meaningful. 
+- ME close to zero, and reasonably low RMSE, MAE, and MAPE values suggest that the model forecasts well, though the high RMSE might be a concern depending on the context. 
+- The ACF1 value suggests some autocorrelation in residuals, implying that there might be room for improvement. 
+
+
+Overall: The MA(1) model appears to be a reasonable fit for the data, capturing the main patterns and trends. However, the presence of some autocorrelation in the residuals and the relatively high RMSE indicate that it might not be the best possible model. 
+
+
+### AR Model
+
+```{r}
+# Fit an AR model
+ar_model <- Arima(ts_data, order=c(1,0,0))
+summary(ar_model)
+```
+
+
+- The ar1 coefficient is significant, with a high value indicating a strong autoregressive component.
+- AIC, AICc, and BIC values are lower than those for the MA(1) model, suggesting a better fit.
+- Lower RMSE, MAE, and MAPE compared to the MA(1) model indicate better predictive performance.
+- The ACF1 value is closer to zero, indicating less autocorrelation in residuals.
+
+Overall: The AR(1) model appears to be a better fit than the MA(1) model for this dataset. It captures the main patterns and trends more accurately, with lower error measures and better information criteria values. However, the prediction intervals suggest some caution in the confidence of future values. 
+
+
+### ARMA Models
+
+```{r}
+# Fit an ARMA(1,1) model as a starting point
+arma_model <- Arima(ts_data, order=c(1,0,1))
+summary(arma_model)
+```
+
+
+The ARMA(1,1) model appears to be a good fit for the data, capturing the main patterns and trends accurately. It provides a better fit compared to the MA(1) model and is comparable to or slightly better than the AR(1) model, especially considering the lower information criteria values and the low autocorrelation of residuals. Further comparison with other ARMA configurations or additional model validation could provide more assurance, but overall, this model seems robust.
+
+
+```{r}
+# Fit ARIMA model
+sarima_model <- auto.arima(ts_data)
+summary(sarima_model)
+```
+
+Model: ARIMA(0,0,0)(2,1,0)[12] with drift
+
+
+This indicates a SARIMA model with:
+
+
+- No non-seasonal autoregressive (AR) terms (p=0)
+- No differencing (d=0)
+- No non-seasonal moving average term (MA=0)
+- Seasonal autoregressive terms of order 2 (SAR(2))
+- Seasonal differencing of order 1 (D=1)
+- No seasonal moving average term (SMA=0)
+- Seasonal period of 12 (monthly data)
+- A drift term
+
+- The coefficients for the AR and seasonal AR terms are significant, suggesting that the seasonal components at lags 12 and 24 months play a crucial role in explaining the variations in the data.
+- AIC, AICc, and BIC values are much lower than those for the previous models, suggesting a significantly better fit.
+- RMSE, MAE, and MAPE values are much lower than those of the previous models, indicating excellent predictive performance.
+- The ACF1 value close to zero indicates minimal autocorrelation in residuals, suggesting a good fit.
+- The intervals are narrower compared to previous models, indicating higher confidence in the forecasts.
+Overall: The SARIMA(0,0,0)(2,1,0)[12] with drift model appears to captures the main patterns and trends accurately, with significantly lower error measures and better information criteria values compared to the MA(1), AR(1), and ARMA(1,1) models. The narrow prediction intervals further suggest high confidence in the future forecasts. This model is robust and well-suited for the time series data.
+
+### ACF, PACF, EACF Plots for SARIMA
+
+```{r}
+# Plot Residuals of the SARIMA Model
+acf_residuals <- residuals(sarima_model)
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(acf_residuals, main="ACF of SARIMA Model Residuals")
+pacf(acf_residuals, main="PACF of SARIMA Model Residuals")
+eacf(acf_residuals)
+```
+
+
+- Most autocorrelations and partial autocorrelations are within the blue dashed significance bounds, indicating that the residuals do not exhibit significant autocorrelation. There are no strong patterns or significant spikes outside the bounds, suggesting that the residuals are approximately white noise.
+- This plot suggests that a model with low AR and MA orders may be appropriate, given the clean separation of significant and non-significant correlations.
+- The model has successfully captured the main structure of the data, including trends and seasonality.
+- The EACF plot supports the model selection by identifying the appropriate AR and MA orders. It provides additional confirmation of the model's adequacy.
+
+
+### Forecasting
+
+```{r}
+# Forecasting with the SARIMA model
+sarima_forecast <- forecast(sarima_model, h=12)
+plot(sarima_forecast, main="Forecasts from SARIMA(0,0,0)(2,1,0)[12] with Drift")
+```
+
+- The forecast for the next 12 months indicates a steady increase in monthly retail sales, with prediction intervals providing a range of expected values. This information can be useful for planning and decision-making purposes in the retail sector.
+
+
+
+### Model Comparison
+
+```{r}
+# Comparing Models using AIC and BIC
+models <- list(ar_model, ma_model, arma_model, sarima_model)
+model_names <- c("AR(1)", "MA(1)", "ARMA(1,1)", "SARIMA(0,0,0)(2,1,0)[12] with Drift")
+
+aic_values <- sapply(models, AIC)
+bic_values <- sapply(models, BIC)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
+
+- The SARIMA(0,0,0)(2,1,0)[12] with Drift model was chosen as the best model based on AIC and BIC values. The model captures both the seasonal and non-seasonal components of the data effectively, and the residuals appear to be white noise, indicating a good fit.
 
 
 
