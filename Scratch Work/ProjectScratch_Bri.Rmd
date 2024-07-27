@@ -248,49 +248,225 @@ print(comparison)
 - The SARIMA(0,0,0)(2,1,0)[12] with Drift model was chosen as the best model based on AIC and BIC values. The model captures both the seasonal and non-seasonal components of the data effectively, and the residuals appear to be white noise, indicating a good fit.
 
 
+## AAPL Monthly Data
+### Load & Inspect the Data
+
+```{r}
+# Load the data
+data <- read.csv("~/Documents/GitHub/MA-641-Course-Project/AAPL_monthly.csv")
+
+# Convert the date column to Date type
+data$Date <- as.Date(data$Date, format="%Y-%m-%d")
+
+# Inspect the data
+head(data)
+summary(data)
+```
+
+
+### Create a Time Series Object
+
+```{r}
+# Create a time series object
+ts_data <- ts(data$Close, start=c(2018, 01), frequency=12) 
+```
+
+
+### Descripvtive Analysis
+
+```{r}
+# Descriptive Analysis
+plot(ts_data, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+summary(ts_data)
+boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Apple Stock Prices", ylab="Close Price")
+```
+
+
+Time Series Plot:
+
+- There is a clear upward trend in Apple stock prices over the period. The prices show a substantial increase, particularly starting around 2020.
+- There is visible volatility in the stock prices, with fluctuations becoming more pronounced in the later years.
+- The increased volatility may imply higher risk for investors, as the stock prices have larger swings.
+
+Summary:
+
+- The mean and median values suggest that the central tendency of the stock prices is around 115 to 130.
+- The range indicates that the stock price has varied significantly over the period.
+- The interquartile range (IQR = Q3 - Q1) shows the spread of the middle 50% of the data, which is a useful measure of variability.
+
+Seasonal Boxplot:
+
+- The presence of seasonality suggests that certain months tend to have higher or lower stock prices consistently, which can be crucial for seasonal trading strategies.
+- The seasonal boxplot reveals monthly patterns and variability, suggesting that seasonality should be considered in trading strategies and risk 
+
+
+### ACF & PACF Plots
+
+```{r}
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(ts_data, main="ACF of Monthly Apple Stock Prices")
+pacf(ts_data, main="PACF of Monthly Apple Stock Prices")
+eacf(ts_data)
+```
+
+
+ACF Plot:
+
+- The gradual decay in the ACF indicates the presence of a trend component in the time series. The series is likely non-stationary.
+- Significant autocorrelations suggest that the data is not random and past values can help predict future values.
+- A high degree of positive autocorrelation at the first few lags implies momentum in the stock prices, which is common in financial time series.
+
+
+PACF Plot:
+
+- The sharp drop after the first lag in the PACF suggests that an AR(1) model may be appropriate for capturing the relationship in the data.
+- The significant first lag indicates that the immediate past value has a strong influence on the current value, while the influence of values further in the past diminishes quickly.
+- This pattern supports the use of a simple autoregressive model, as the complexity beyond the first lag does not add much explanatory power.
+
+
+### ADF Test
+
+```{r}
+# Augmented Dickey-Fuller Test
+adf_test <- adf.test(ts_data, alternative="stationary")
+print(adf_test)
+```
+
+
+- Since the p-value is greater than 0.05, we fail to reject the null hypothesis that the time series has a unit root. This indicates that the series is non-stationary.
+- The non-stationarity observed from the ADF test results implies that differencing the time series is necessary to achieve stationarity.
+
+
+```{r}
+# Differencing the series if it is not stationary
+if (adf_test$p.value > 0.05) {
+  ts_data_diff <- diff(ts_data, differences=1)
+  adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
+  print(adf_test_diff)
+  
+  # Update the time series data to the differenced series
+  ts_data <- ts_data_diff
+}
+```
+
+
+- Since the p-value is less than 0.05, we reject the null hypothesis that the time series has a unit root. This indicates that the differenced series is stationary.
+- With the differenced series being stationary, it is now suitable for fitting ARIMA models.
+ 
+
+### Fit AR, MA, and ARMA Models
+#### AR Model
+```{r}
+# Fit AR model
+ar_model <- Arima(ts_data, order=c(1,0,0))
+summary(ar_model)
+```
+
+
+- The AR(1) coefficient is -0.0337, indicating a weak negative relationship between the current and previous value in the time series. This suggests that the current month's stock price is slightly negatively correlated with the previous month's price.
+- The mean value of 0.4415 indicates the average level around which the time series fluctuates.
+- The standard errors for the coefficients are relatively small, suggesting that the estimates are reasonably precise.
+- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
+
+
+#### MA Model
+```{r}
+# Fit MA model
+ma_model <- Arima(ts_data, order=c(0,0,1))
+summary(ma_model)
+
+```
+
+
+- The ARIMA(0,0,1) model fits the data with a weak negative moving average component.
+- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
+- THE AIC and BIC values are the same for the AR and MA models
+
+#### ARMA Model
+```{r}
+# Fit ARMA model
+arma_model1 <- Arima(ts_data, order=c(1,0,1))
+summary(arma_model1)
+```
+
+
+- The ARIMA(1,0,1) model provides a slightly more complex representation by combining AR and MA components. However, the improvement in model fit compared to the simpler ARIMA(0,0,1) model is minimal, as indicated by similar log likelihood, AIC, and BIC values. 
+- The high standard errors for the AR and MA coefficients suggest potential issues with estimate precision. 
+- Overall, the ARIMA(0,0,1) model (MA model) might be preferred for its simplicity and comparable fit.
+
+
+```{r}
+# ARMA(2,1) Model
+arma_model2 <- Arima(ts_data, order=c(2,0,1))
+summary(arma_model2)
+```
+
+
+- The ARIMA(2,0,1) model introduces additional AR and MA components compared to simpler models, but the improvement in fit is minimal. 
+- The AIC and BIC values are slightly higher, and the standard errors for the AR(1) and MA(1) coefficients remain relatively high. 
+- Overall, the simpler ARIMA(1,0,1) or ARIMA(0,0,1) models might be preferred for their comparable fit and simplicity.
+
+#### SARIMA Model
+
+```{r}
+# Fit SARIMA model
+sarima_model <- auto.arima(ts_data)
+summary(sarima_model)
+```
+
+
+- The SARIMA(0,0,0)(0,0,1)[12] model introduces a seasonal component to the ARIMA modeling, capturing any seasonal effects present in the data. 
+- While the AIC and BIC values are competitive with other models, the simpler ARIMA models (like ARIMA(1,0,1) or ARIMA(0,0,1)) might still be preferred due to their simplicity and slightly better fit metrics.
+- The seasonal term in the SARIMA model captures the seasonal variation but does not significantly improve the fit compared to non-seasonal ARIMA models.
+
+#### Model Comparison
+
+```{r}
+# Comparing Models using AIC and BIC
+models <- list(ar_model, ma_model, arma_model1, arma_model2, sarima_model)
+model_names <- c("AR", "MA", "ARMA1", "ARMA2", "SARIMA(0,0,0)(0,0,1)[12] with Non-Zero Mean")
+
+aic_values <- sapply(models, AIC)
+bic_values <- sapply(models, BIC)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
 
 
 
+### ACF, PACF, and EACF Plots
+
+```{r}
+# Plot Residuals of the SARIMA Model
+acf_residuals <- residuals(sarima_model)
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(acf_residuals, main="ACF of SARIMA Model Residuals")
+pacf(acf_residuals, main="PACF of SARIMA Model Residuals")
+eacf(acf_residuals)
+```
 
 
+- The ACF and PACF plots suggest that the SARIMA model residuals are uncorrelated and resemble white noise.
+- This indicates a good model fit as the model has successfully captured the time series patterns and structure.
+- The lack of significant autocorrelation in the residuals validates the SARIMA model, confirming that it is a suitable model for the given data.
 
 
+### Forecasting
+
+```{r}
+# Forecasting with the SARIMA model
+sarima_forecast <- forecast(sarima_model, h=12)
+plot(sarima_forecast, main="Forecasts from SARIMA(0,0,0)(0,0,1)[12] with Non-Zero Mean")
+```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- The plot shows the forecasted values from the SARIMA(0,0,0)(0,0,1)[12] model with a non-zero mean.
+- The confidence intervals widen as we move further into the future, reflecting increasing uncertainty in the predictions.
+- The SARIMA model seems to capture the overall trend and seasonality in the data, but it may not fully capture the high volatility seen in the historical data.
+- The residuals' ACF and PACF plots indicate that the model's residuals are mostly uncorrelated, suggesting a good fit.
+- While the SARIMA model captures the seasonality and general trend, it may not fully account for the extreme fluctuations seen in the historical data. For better predictions, it might be necessary to explore other models or include additional explanatory variables.
 
 
 
