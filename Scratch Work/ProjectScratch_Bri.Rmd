@@ -1,7 +1,10 @@
 ---
 title: "MA641 Project Scratch"
 author: "Brianna Cirillo"
-output: html_notebook
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ### Libraries
@@ -10,7 +13,9 @@ output: html_notebook
 # Load necessary libraries
 library(forecast)
 library(tseries)
+library(TSA)
 library(tidyverse)
+library(rugarch)
 ```
  
 
@@ -40,7 +45,7 @@ summary(data)
 
 ```{r}
 # Create a time series object
-ts_data <- ts(data$RSXFSN, start=c(2018, 12), frequency=12)
+seasonal_ts <- ts(data$RSXFSN, start=c(2018, 12), end=c(2024, 05), frequency=12)
 
 ```
 
@@ -49,9 +54,9 @@ ts_data <- ts(data$RSXFSN, start=c(2018, 12), frequency=12)
 
 ```{r}
 # Descriptive Analysis
-plot(ts_data, main="Monthly Retail Sales", ylab="Sales", xlab="Time")
-summary(ts_data)
-boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Retail Sales", ylab="Sales")
+plot(seasonal_ts, main="Monthly Retail Sales", ylab="Sales", xlab="Time")
+summary(seasonal_ts)
+boxplot(seasonal_ts ~ cycle(seasonal_ts), main="Seasonal Boxplot of Monthly Retail Sales", ylab="Sales")
 
 ```
 
@@ -77,8 +82,9 @@ Seasonal Boxplots:
 ```{r}
 # ACF and PACF Plots
 par(mar=c(5, 5, 4, 2) + 0.1)
-acf(ts_data, main="ACF of Monthly Retail Sales")
-pacf(ts_data, main="PACF of Monthly Retail Sales")
+acf(seasonal_ts, main="ACF of Monthly Retail Sales", lag.max = 72)
+pacf(seasonal_ts, main="PACF of Monthly Retail Sales", lag.max = 72)
+eacf(seasonal_ts)
 ```
 
 
@@ -102,7 +108,7 @@ PACF:
 
 ```{r}
 # Augmented Dickey-Fuller Test
-adf_test <- adf.test(ts_data, alternative="stationary")
+adf_test <- adf.test(seasonal_ts, alternative="stationary")
 print(adf_test)
 ```
 
@@ -116,12 +122,12 @@ print(adf_test)
 ```{r}
 # Differencing the series if it is not stationary
 if (adf_test$p.value > 0.05) {
-  ts_data_diff <- diff(ts_data, differences=1)
+  ts_data_diff <- diff(seasonal_ts, differences=1)
   adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
   print(adf_test_diff)
   
   # Update the time series data to the differenced series
-  ts_data <- ts_data_diff
+  seasonal_ts <- ts_data_diff
 }
 ```
 
@@ -131,7 +137,7 @@ if (adf_test$p.value > 0.05) {
 
 ```{r}
 # Fit an MA model
-ma_model <- Arima(ts_data, order=c(0,0,1))
+ma_model <- Arima(seasonal_ts, order=c(0,0,1))
 summary(ma_model)
 ```
 
@@ -148,7 +154,7 @@ Overall: The MA(1) model appears to be a reasonable fit for the data, capturing 
 
 ```{r}
 # Fit an AR model
-ar_model <- Arima(ts_data, order=c(1,0,0))
+ar_model <- Arima(seasonal_ts, order=c(1,0,0))
 summary(ar_model)
 ```
 
@@ -165,7 +171,7 @@ Overall: The AR(1) model appears to be a better fit than the MA(1) model for thi
 
 ```{r}
 # Fit an ARMA(1,1) model as a starting point
-arma_model <- Arima(ts_data, order=c(1,0,1))
+arma_model <- Arima(seasonal_ts, order=c(1,0,1))
 summary(arma_model)
 ```
 
@@ -175,7 +181,7 @@ The ARMA(1,1) model appears to be a good fit for the data, capturing the main pa
 
 ```{r}
 # Fit ARIMA model
-sarima_model <- auto.arima(ts_data)
+sarima_model <- auto.arima(seasonal_ts)
 summary(sarima_model)
 ```
 
@@ -207,8 +213,8 @@ Overall: The SARIMA(0,0,0)(2,1,0)[12] with drift model appears to captures the m
 # Plot Residuals of the SARIMA Model
 acf_residuals <- residuals(sarima_model)
 par(mar=c(5, 5, 4, 2) + 0.1)
-acf(acf_residuals, main="ACF of SARIMA Model Residuals")
-pacf(acf_residuals, main="PACF of SARIMA Model Residuals")
+acf(acf_residuals, main="ACF of SARIMA Model Residuals", lag.max = 72)
+pacf(acf_residuals, main="PACF of SARIMA Model Residuals", lag.max = 72)
 eacf(acf_residuals)
 ```
 
@@ -248,6 +254,18 @@ print(comparison)
 - The SARIMA(0,0,0)(2,1,0)[12] with Drift model was chosen as the best model based on AIC and BIC values. The model captures both the seasonal and non-seasonal components of the data effectively, and the residuals appear to be white noise, indicating a good fit.
 
 
+### Residual Analysis
+```{r}
+# Enhanced residual analysis using tsdiag
+par(mar=c(5, 5, 4, 2) + 0.1)
+tsdiag(sarima_model)
+```
+
+- The standardized residuals plot indicates no obvious pattern, suggesting that the model has captured the main structure of the data.
+- The ACF of residuals shows no significant autocorrelation, indicating the residuals behave like white noise.
+- The Ljung-Box test results show that the residuals are independently distributed.
+
+
 ## AAPL Monthly Data
 ### Load & Inspect the Data
 
@@ -268,7 +286,7 @@ summary(data)
 
 ```{r}
 # Create a time series object
-ts_data <- ts(data$Close, start=c(2018, 01), frequency=12) 
+nonseasonal_ts <- ts(data$Close, start=c(2018, 01), end = c(2024, 05), frequency=12) 
 ```
 
 
@@ -276,9 +294,9 @@ ts_data <- ts(data$Close, start=c(2018, 01), frequency=12)
 
 ```{r}
 # Descriptive Analysis
-plot(ts_data, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
-summary(ts_data)
-boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Apple Stock Prices", ylab="Close Price")
+plot(nonseasonal_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+summary(nonseasonal_ts)
+boxplot(nonseasonal_ts ~ cycle(nonseasonal_ts), main="Seasonal Boxplot of Monthly Apple Stock Prices", ylab="Close Price")
 ```
 
 
@@ -300,14 +318,14 @@ Seasonal Boxplot:
 - The seasonal boxplot reveals monthly patterns and variability, suggesting that seasonality should be considered in trading strategies and risk 
 
 
-### ACF & PACF Plots
+### ACF, PACF, & EACF Plots
 
 ```{r}
 # ACF and PACF Plots
 par(mar=c(5, 5, 4, 2) + 0.1)
-acf(ts_data, main="ACF of Monthly Apple Stock Prices")
-pacf(ts_data, main="PACF of Monthly Apple Stock Prices")
-eacf(ts_data)
+acf(nonseasonal_ts, main="ACF of Monthly Apple Stock Prices", lag.max = 72)
+pacf(nonseasonal_ts, main="PACF of Monthly Apple Stock Prices", lag.max = 72)
+eacf(nonseasonal_ts)
 ```
 
 
@@ -329,7 +347,7 @@ PACF Plot:
 
 ```{r}
 # Augmented Dickey-Fuller Test
-adf_test <- adf.test(ts_data, alternative="stationary")
+adf_test <- adf.test(nonseasonal_ts, alternative="stationary")
 print(adf_test)
 ```
 
@@ -341,12 +359,12 @@ print(adf_test)
 ```{r}
 # Differencing the series if it is not stationary
 if (adf_test$p.value > 0.05) {
-  ts_data_diff <- diff(ts_data, differences=1)
+  ts_data_diff <- diff(nonseasonal_ts, differences=1)
   adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
   print(adf_test_diff)
   
   # Update the time series data to the differenced series
-  ts_data <- ts_data_diff
+  nonseasonal_ts <- ts_data_diff
 }
 ```
 
@@ -359,7 +377,7 @@ if (adf_test$p.value > 0.05) {
 #### AR Model
 ```{r}
 # Fit AR model
-ar_model <- Arima(ts_data, order=c(1,0,0))
+ar_model <- Arima(nonseasonal_ts, order=c(1,0,0))
 summary(ar_model)
 ```
 
@@ -373,7 +391,7 @@ summary(ar_model)
 #### MA Model
 ```{r}
 # Fit MA model
-ma_model <- Arima(ts_data, order=c(0,0,1))
+ma_model <- Arima(nonseasonal_ts, order=c(0,0,1))
 summary(ma_model)
 
 ```
@@ -386,7 +404,7 @@ summary(ma_model)
 #### ARMA Model
 ```{r}
 # Fit ARMA model
-arma_model1 <- Arima(ts_data, order=c(1,0,1))
+arma_model1 <- Arima(nonseasonal_ts, order=c(1,0,1))
 summary(arma_model1)
 ```
 
@@ -398,7 +416,7 @@ summary(arma_model1)
 
 ```{r}
 # ARMA(2,1) Model
-arma_model2 <- Arima(ts_data, order=c(2,0,1))
+arma_model2 <- Arima(nonseasonal_ts, order=c(2,0,1))
 summary(arma_model2)
 ```
 
@@ -411,7 +429,7 @@ summary(arma_model2)
 
 ```{r}
 # Fit SARIMA model
-sarima_model <- auto.arima(ts_data)
+sarima_model <- auto.arima(nonseasonal_ts)
 summary(sarima_model)
 ```
 
@@ -419,6 +437,10 @@ summary(sarima_model)
 - The SARIMA(0,0,0)(0,0,1)[12] model introduces a seasonal component to the ARIMA modeling, capturing any seasonal effects present in the data. 
 - While the AIC and BIC values are competitive with other models, the simpler ARIMA models (like ARIMA(1,0,1) or ARIMA(0,0,1)) might still be preferred due to their simplicity and slightly better fit metrics.
 - The seasonal term in the SARIMA model captures the seasonal variation but does not significantly improve the fit compared to non-seasonal ARIMA models.
+
+
+
+
 
 #### Model Comparison
 
@@ -442,8 +464,8 @@ print(comparison)
 # Plot Residuals of the SARIMA Model
 acf_residuals <- residuals(sarima_model)
 par(mar=c(5, 5, 4, 2) + 0.1)
-acf(acf_residuals, main="ACF of SARIMA Model Residuals")
-pacf(acf_residuals, main="PACF of SARIMA Model Residuals")
+acf(acf_residuals, main="ACF of SARIMA Model Residuals", lag.max = 72)
+pacf(acf_residuals, main="PACF of SARIMA Model Residuals", lag.max = 72)
 eacf(acf_residuals)
 ```
 
@@ -469,7 +491,221 @@ plot(sarima_forecast, main="Forecasts from SARIMA(0,0,0)(0,0,1)[12] with Non-Zer
 - While the SARIMA model captures the seasonality and general trend, it may not fully account for the extreme fluctuations seen in the historical data. For better predictions, it might be necessary to explore other models or include additional explanatory variables.
 
 
+## AAPL Weekly Data
+### Load & Inspect the Data
 
+```{r}
+# Load the data
+aapl_data1 <- read.csv("~/Documents/GitHub/MA-641-Course-Project/AAPL_weekly.csv")
+
+# Convert the date column to Date type
+aapl_data1$Date <- as.Date(aapl_data1$Date, format="%Y-%m-%d")
+
+# Inspect the data
+head(aapl_data1)
+summary(aapl_data1)
+```
+
+
+### Create a Time Series Object
+
+```{r}
+# Create a time series object
+nonseasonal_ts1 <- ts(aapl_data1$Close, start=c(2018, 01), end = c(2024, 05), frequency=52) 
+```
+
+
+### Descripvtive Analysis
+
+```{r}
+# Descriptive Analysis
+plot(nonseasonal_ts1, main="Weekly Apple Stock Prices", ylab="Close Price", xlab="Time")
+summary(nonseasonal_ts1)
+```
+
+Time Series Plot:
+
+- The stock prices show a clear upward trend over the years.
+- There are noticeable fluctuations and periods of volatility.
+- The stock prices reached a peak close to 200 in recent weeks before experiencing some variability.
+
+Implications:
+
+- The upward trend in the stock prices suggests a positive growth for investors over the period.
+- The fluctuations indicate periods of volatility which investors need to be aware of when making investment decisions.
+- The summary statistics provide a quick overview of the central tendency and spread of the stock prices, which can be useful for financial analysis and forecasting.
+
+
+### ACF, PACF, & EACF Plots
+
+```{r}
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(nonseasonal_ts1, main="ACF of Weekly Apple Stock Prices", lag.max = 72)
+pacf(nonseasonal_ts1, main="PACF of Weekly Apple Stock Prices", lag.max = 72)
+eacf(nonseasonal_ts1)
+```
+
+
+ACF Plot: The plot for the weekly Apple stock prices demonstrates a slow decay, which indicates that the series is non-stationary and may exhibit long-term dependencies. The slow decay suggests the presence of trends or patterns over time.
+
+PACF Plot: The PACF plot for the weekly Apple stock prices shows a significant spike at lag 1, followed by smaller spikes. This indicates that an AR(1) model may be appropriate, as the first lag has a strong partial autocorrelation.
+- AR(1)
+
+EACF Plot: 
+- The row corresponding to AR order 0 has 'o's for MA orders 1 to 4.
+- The column corresponding to MA order 0 has 'o's for AR orders 1, 2, and 4.
+- MA(1)
+- ARIMA(1,0,1)
+
+### ADF Test
+
+```{r}
+# Augmented Dickey-Fuller Test
+adf_test <- adf.test(nonseasonal_ts1, alternative="stationary")
+print(adf_test)
+```
+
+
+- Since the p-value (0.3007) is greater than the commonly used significance level of 0.05, we fail to reject the null hypothesis.
+- Therefore, we conclude that the weekly Apple stock prices time series is non-stationary. This implies that the series has trends, seasonality, or other patterns that cause the statistical properties to change over time.
+
+```{r}
+# Differencing the series if it is not stationary
+if (adf_test$p.value > 0.05) {
+  ts_data_diff <- diff(nonseasonal_ts1, differences=1)
+  adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
+  print(adf_test_diff)
+  
+  # Update the time series data to the differenced series
+  nonseasonal_ts1 <- ts_data_diff
+}
+```
+
+
+
+### Modeling
+
+#### AR Model
+```{r}
+# AR(1) Model
+ar_model <- arima(nonseasonal_ts1, order=c(1,0,0))
+summary(ar_model)
+```
+
+
+
+#### Garch Models
+
+```{r}
+# Calculate returns for modeling
+returns <- diff(log(nonseasonal_ts1))
+```
+
+```{r}
+# Specify GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(1, 0)), 
+                         distribution.model = "norm")
+
+fit_garch <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garch
+```
+
+```{r}
+# Plot diagnostics
+plot(fit_garch)
+```
+
+
+
+```{r}
+# Specify EGARCH(1,1) model
+spec_egarch <- ugarchspec(variance.model = list(model = "eGARCH", garchOrder = c(1, 1)),
+                          mean.model = list(armaOrder = c(1, 0)), 
+                          distribution.model = "norm")
+
+fit_egarch <- ugarchfit(spec = spec_egarch, data = returns)
+
+# Display the fit summary
+fit_egarch
+```
+
+
+```{r}
+# Plot diagnostics
+plot(fit_egarch)
+```
+
+
+
+```{r}
+# Specify TGARCH(1,1) model
+spec_tgarch <- ugarchspec(variance.model = list(model = "fGARCH", submodel = "TGARCH", garchOrder = c(1, 1)),
+                          mean.model = list(armaOrder = c(1, 0)), 
+                          distribution.model = "norm")
+
+fit_tgarch <- ugarchfit(spec = spec_tgarch, data = returns)
+
+# Display the fit summary
+fit_tgarch
+```
+
+
+
+
+```{r}
+# Plot diagnostics
+plot(fit_tgarch)
+```
+
+
+##### Model Comparison
+GARCH(1,1):
+
+- Log-Likelihood: 577.3351
+- AIC: -3.6224
+- BIC: -3.5629
+- Shibata: -3.6229
+- Hannan-Quinn: -3.5986
+- Significant parameters: omega, alpha1, beta1 (p-values < 0.05)
+
+
+EGARCH(1,1)
+
+- Log-Likelihood: 587.5454
+- AIC: -3.6807
+- BIC: -3.6094
+- Shibata: -3.6814
+- Hannan-Quinn: -3.6522
+- Significant parameters: omega, alpha1, beta1, gamma1 (p-values < 0.05)
+
+
+TGARCH(1,1)
+
+- Log-Likelihood: 588.4518
+- AIC: -3.6864
+- BIC: -3.6151
+- Shibata: -3.6871
+- Hannan-Quinn: -3.6579
+- Significant parameters: omega, alpha1, beta1, eta11 (p-values < 0.05)
+
+
+TGARCH(1,1) has the highest log-likelihood, which is good. TGARCH(1,1) has the lowest AIC, BIC, Shibata, and Hannan-Quinn values. Therefore, the TGARCH(1,1) model is indeed the best fit among the three models.
+
+
+
+#### Forecasting
+
+```{r}
+# Forecasting with the TGARCH model
+forecast_tgarch <- ugarchforecast(fit_tgarch, n.ahead=12)
+plot(forecast_tgarch, which=1)  # Forecast series
+plot(forecast_tgarch, which=2)  # Forecast conditional variance
+
+```
 
 
 
