@@ -633,7 +633,7 @@ fit_egarch <- ugarchfit(spec = spec_egarch, data = returns)
 fit_egarch
 ```
 
-
+ 
 ```{r}
 # Plot diagnostics
 plot(fit_egarch)
