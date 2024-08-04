@@ -373,6 +373,15 @@ if (adf_test$p.value > 0.05) {
 - With the differenced series being stationary, it is now suitable for fitting ARIMA models.
  
 
+
+```{r}
+# Time Series Plot after Differencing
+plot(nonseasonal_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+```
+
+
+
+
 ### Fit AR, MA, and ARMA Models
 #### AR Model
 ```{r}
@@ -393,7 +402,6 @@ summary(ar_model)
 # Fit MA model
 ma_model <- Arima(nonseasonal_ts, order=c(0,0,1))
 summary(ma_model)
-
 ```
 
 
@@ -404,7 +412,7 @@ summary(ma_model)
 #### ARMA Model
 ```{r}
 # Fit ARMA model
-arma_model1 <- Arima(nonseasonal_ts, order=c(1,0,1))
+arma_model1 <- Arima(nonseasonal_ts, order=c(1,1,1))
 summary(arma_model1)
 ```
 
@@ -416,7 +424,7 @@ summary(arma_model1)
 
 ```{r}
 # ARMA(2,1) Model
-arma_model2 <- Arima(nonseasonal_ts, order=c(2,0,1))
+arma_model2 <- Arima(nonseasonal_ts, order=c(2,1,1))
 summary(arma_model2)
 ```
 
@@ -425,29 +433,13 @@ summary(arma_model2)
 - The AIC and BIC values are slightly higher, and the standard errors for the AR(1) and MA(1) coefficients remain relatively high. 
 - Overall, the simpler ARIMA(1,0,1) or ARIMA(0,0,1) models might be preferred for their comparable fit and simplicity.
 
-#### SARIMA Model
-
-```{r}
-# Fit SARIMA model
-sarima_model <- auto.arima(nonseasonal_ts)
-summary(sarima_model)
-```
-
-
-- The SARIMA(0,0,0)(0,0,1)[12] model introduces a seasonal component to the ARIMA modeling, capturing any seasonal effects present in the data. 
-- While the AIC and BIC values are competitive with other models, the simpler ARIMA models (like ARIMA(1,0,1) or ARIMA(0,0,1)) might still be preferred due to their simplicity and slightly better fit metrics.
-- The seasonal term in the SARIMA model captures the seasonal variation but does not significantly improve the fit compared to non-seasonal ARIMA models.
-
-
-
-
 
 #### Model Comparison
 
 ```{r}
 # Comparing Models using AIC and BIC
-models <- list(ar_model, ma_model, arma_model1, arma_model2, sarima_model)
-model_names <- c("AR", "MA", "ARMA1", "ARMA2", "SARIMA(0,0,0)(0,0,1)[12] with Non-Zero Mean")
+models <- list(ar_model, ma_model, arma_model1, arma_model2)
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)")
 
 aic_values <- sapply(models, AIC)
 bic_values <- sapply(models, BIC)
@@ -457,15 +449,24 @@ print(comparison)
 ```
 
 
+### Residual Analysis
+```{r}
+# Enhanced residual analysis using tsdiag
+tsdiag(arma_model2)
+```
+
+
+
+
 
 ### ACF, PACF, and EACF Plots
 
 ```{r}
 # Plot Residuals of the SARIMA Model
-acf_residuals <- residuals(sarima_model)
+acf_residuals <- residuals(arma_model2)
 par(mar=c(5, 5, 4, 2) + 0.1)
-acf(acf_residuals, main="ACF of SARIMA Model Residuals", lag.max = 72)
-pacf(acf_residuals, main="PACF of SARIMA Model Residuals", lag.max = 72)
+acf(acf_residuals, main="ACF of ARIMA(2,1,1) Model Residuals", lag.max = 72)
+pacf(acf_residuals, main="PACF of ARIMA(2,1,1) Model Residuals", lag.max = 72)
 eacf(acf_residuals)
 ```
 
@@ -479,8 +480,8 @@ eacf(acf_residuals)
 
 ```{r}
 # Forecasting with the SARIMA model
-sarima_forecast <- forecast(sarima_model, h=12)
-plot(sarima_forecast, main="Forecasts from SARIMA(0,0,0)(0,0,1)[12] with Non-Zero Mean")
+arma2_forecast <- forecast(arma_model2, h=12)
+plot(arma2_forecast, main="Forecasts from ARIMA(2,1,1)")
 ```
 
 
@@ -592,19 +593,47 @@ plot(nonseasonal_ts1, main="Weekly Apple Stock Prices", ylab="Close Price", xlab
 #### AR Model
 ```{r}
 # AR(1) Model
-ar_model <- arima(nonseasonal_ts1, order=c(1,0,0))
+ar_model <- Arima(nonseasonal_ts1, order=c(1,0,0))
 summary(ar_model)
 ```
 
 
 
-#### Garch Models
+#### MA Model
+```{r}
+# MA(1) Model
+ma_model <- Arima(nonseasonal_ts1, order=c(0,0,1))
+summary(ma_model)
+```
+
+
+#### ARMA Model
+```{r}
+# MA(1) Model
+arma_model <- Arima(nonseasonal_ts1, order=c(1,1,1))
+summary(arma_model)
+```
+
+
+#### Auto-ARIMA
+```{r}
+autoweekly_fit <- auto.arima(nonseasonal_ts1)
+summary(autoweekly_fit)
+```
+
+
+
+
+
+#### GARCH Models
 
 ```{r}
+# Create a time series object
+nonseasonal_ts2 <- ts(aapl_data1$Close, start=c(2018, 01), end = c(2024, 05), frequency=52) 
 # Calculate returns for modeling
-returns <- diff(log(nonseasonal_ts1))
+returns <- diff(log(nonseasonal_ts2))
 returns <- returns[!is.na(returns)]
-plot(returns, main="Weekly Apple Stock Prices", ylab="Close Price", xlab="Time")
+plot(returns, main="Weekly Apple Stock Prices", ylab="Close Price", xlab="Time", type="l")
 ```
 
 ```{r}
@@ -708,7 +737,7 @@ TGARCH(1,1) has the highest log-likelihood, which is good. TGARCH(1,1) has the l
 # Forecasting with the TGARCH model
 forecast_tgarch <- ugarchforecast(fit_tgarch, n.ahead=12)
 plot(forecast_tgarch, which=1)  # Forecast series
-plot(forecast_tgarch, which=2)  # Forecast conditional variance
+# plot(forecast_tgarch, which=2)  # Forecast conditional variance
 
 ```
 
