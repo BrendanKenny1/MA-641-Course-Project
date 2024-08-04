@@ -582,6 +582,9 @@ if (adf_test$p.value > 0.05) {
 }
 ```
 
+```{r}
+plot(nonseasonal_ts1, main="Weekly Apple Stock Prices", ylab="Close Price", xlab="Time")
+```
 
 
 ### Modeling
@@ -600,6 +603,8 @@ summary(ar_model)
 ```{r}
 # Calculate returns for modeling
 returns <- diff(log(nonseasonal_ts1))
+returns <- returns[!is.na(returns)]
+plot(returns, main="Weekly Apple Stock Prices", ylab="Close Price", xlab="Time")
 ```
 
 ```{r}
