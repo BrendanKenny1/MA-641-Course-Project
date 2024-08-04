@@ -3,7 +3,7 @@ title: "Apple Stock Data (Monthly 2016-2024)"
 author: "Brianna Cirillo"
 output: html_notebook
 ---
-
+ 
 ### Libraries
 
 ```{r}
