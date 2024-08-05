@@ -286,7 +286,7 @@ library(quantmod)
 
 The following dataset is part of the Advance Monthly Retail Trade Survery conducted by the U.S Census Bureau, retrieved from FRED and measures the retail trade activity in the United States. It provides an early estimate of monthly sales for retail and food service companies capturing consumer demand for goods and services. 
 
-The RSXFSN data series measures the dollar value of sales and is reported on millions of dollars. This data is not seasonally adjusted and is released monthly. The period of observation for this project spans a 10 year period from January 2014 to May 2024, totalling 126 observations. 
+The RSXFSN data series measures the dollar value of sales and is reported on millions of dollars. This data is not seasonally adjusted and is released monthly. The period of observation for this project spans a 10 year period from January 2014 to May 2024, totaling 126 observations. 
 
 ```{r}
 file_path <- "C:\\Users\\maldo\\Downloads\\RSXFSN.csv"
