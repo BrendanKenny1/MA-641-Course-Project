@@ -1,5 +1,6 @@
 ---
 title: "Project Work"
+author: "Kimberley Maldonado, Brendan Kenny, Emily Su, Brianna Cirillo"
 output: html_notebook
 ---
 

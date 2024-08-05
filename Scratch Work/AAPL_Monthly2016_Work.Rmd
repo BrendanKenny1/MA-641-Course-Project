@@ -3,7 +3,7 @@ title: "Apple Stock Data (Monthly 2016-2024)"
 author: "Brianna Cirillo"
 output: html_notebook
 ---
- 
+  
 ### Libraries
 
 ```{r}
@@ -30,6 +30,13 @@ aapl_monthly_data$Date <- as.Date(aapl_monthly_data$Date, format="%Y-%m-%d")
 head(aapl_monthly_data)
 summary(aapl_monthly_data)
 ```
+
+About the Data:
+
+- 101 data points spanning from 01/01/16 to 05/01/24
+- Data includes the monthly open, high, low, close, and adjusted close prices of the apple stock
+
+
 
 ### Create a Time Series Object
 
@@ -140,9 +147,29 @@ summary(ar_model)
 ```
 
 
-- The mean value of 1.6476 indicates the average level around which the time series fluctuates.
-- The standard errors for the coefficients are relatively small, suggesting that the estimates are reasonably precise.
-- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
+- AR(1) Coefficient=0.0409, is a small positive value close to zero which suggests a weak positive correlation with the immediate past month's value
+- AR(2) Coefficient=-0.2708, is a negative value which suggests that the price two months ago has a moderate inverse relationship with the current month's price
+- Mean=1.6476, the average level of the series after removing the autoregressive effects
+- The AR(1) coefficient is small, while the AR(2) coefficient is moderate and negative, suggesting some complexity in how past values relate to current values
+- The model accounts for the influence of two previous months' prices, capturing both immediate and delayed effects
+- The variance is relatively high, which may indicate substantial unexplained variability
+- RMSE and MAE are moderate, indicating that the model has reasonable accuracy but could be improved
+- High MPE and MAPE suggest some forecasts might be significantly off from actual values
+
+
+##### Residual Analysis
+
+```{r}
+# Perform diagnostics for AR(2)
+tsdiag(ar_model, gof.lag = 10, main = "Diagnostics for AR(2)")
+
+# Q-Q plot for AR(2)
+residuals_ar2 <- residuals(ar_model)
+qqnorm(residuals_ar2, main = "Q-Q Plot of Residuals for AR(2)")
+qqline(residuals_ar2, col = "red")
+```
+
+
 
 
 #### MA Model
@@ -153,81 +180,113 @@ summary(ma_model)
 ```
 
 
-- The MA(2) model fits the data with a weak positive moving average component.
-- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
-- THE AIC and BIC values are higher for the AR and MA models
+- The small MA(1) coefficient suggests a weak impact of the error from one period ago, while the moderate negative MA(2) coefficient indicates a more noticeable inverse relationship with errors from two periods ago.
+- The variance (sigma^2) is moderate, consistent with the AR(2) model, suggesting a similar level of unexplained volatility.
+- RMSE and MAE are slightly lower than those of the AR(2) model, indicating that the MA(2) model may fit the data slightly better in terms of absolute error metrics.
+- The AIC and BIC values are very similar to those of the AR(2) model, suggesting that both models are comparable in fit.
+- The slightly lower AIC suggests the MA(2) model might be marginally better in terms of balancing model complexity and goodness of fit.
+
+
+##### Residual Analysis
+
+```{r}
+# Perform diagnostics for MA(2)
+tsdiag(ma_model, gof.lag = 10, main = "Diagnostics for MA(2)")
+
+# Q-Q plot for MA(2)
+residuals_ma2 <- residuals(ma_model)
+qqnorm(residuals_ma2, main = "Q-Q Plot of Residuals for MA(2)")
+qqline(residuals_ma2, col = "red")
+```
+
+
 
 
 #### ARMA Model
 ```{r}
-# Fit ARMA model
+# Fit ARMA(1,1,1) model
 arma_model1 <- Arima(aaplmonthly_ts, order=c(1,1,1))
 summary(arma_model1)
 ```
 
 
-- The ARIMA(1,1,1) model provides a slightly more complex representation by combining AR and MA components. However, the improvement in model fit compared to the simpler AR(2) model is minimal, as indicated by similar log likelihood, AIC, and BIC values. 
-- The high standard errors for the AR and MA coefficients suggest potential issues with estimate precision. 
-- Overall, the AR(2) model might be preferred for its simplicity and comparable fit.
+- The AR coefficient is weak, indicating a limited effect of past values on current values. The MA coefficient is very strong, indicating significant correction based on past errors.
+- The differencing part of the ARIMA model suggests that the data has been transformed to achieve stationarity, which might explain why the AR component is weak.
+- The variance of the residuals is moderate, suggesting some unexplained variability in the data.
+- RMSE and MAE are higher than in AR(2) and MA(2), indicating less precise predictions.
+- The AIC and BIC values suggest this model might not be the best fit compared to simpler models like AR(2) and MA(2), which had lower AIC/BIC values.
+
+
+##### Residual Analysis
+
+```{r}
+# Perform diagnostics for ARIMA(1,1,1)
+tsdiag(arma_model1, gof.lag = 10, main = "Diagnostics for ARIMA(1,1,1)")
+
+# Q-Q plot for ARIMA(1,1,1)
+residuals_arma111 <- residuals(arma_model1)
+qqnorm(residuals_arma111, main = "Q-Q Plot of Residuals for ARIMA(1,1,1)")
+qqline(residuals_arma111, col = "red")
+```
+
+
 
 
 
 ```{r}
-# ARMA(2,1) Model
+# ARMA(2,1,1) Model
 arma_model2 <- Arima(aaplmonthly_ts, order=c(2,1,1))
 summary(arma_model2)
 ```
 
 
-- The ARIMA(2,1,1) model introduces additional AR and MA components compared to simpler models, but the improvement in fit is minimal. 
-- The AIC and BIC values are slightly lower, and the standard errors for the AR(2) and MA(1) coefficients remain relatively high. 
-- Overall, the simpler AR(2) models might be preferred for their comparable fit and simplicity.
+- The AR coefficients show a mixed impact, with a weak positive effect from the last period and a moderate negative effect from two periods ago. The strong MA(1) term suggests that recent errors are heavily corrected, which may smooth the series too aggressively.
+- The variance of the residuals is moderate, indicating a fair amount of explained variability. The error measures (RMSE and MAE) suggest that the model provides reasonably accurate predictions, although there are still areas for improvement.
+- The AIC and BIC values are relatively low, indicating a good fit compared to other models. The log likelihood is also higher, supporting this conclusion.
+- The ARIMA(2,1,1) model captures the data dynamics well, with strong correction for past errors and a reasonable account of past values. The model is effective in handling the data's structure and trends, as indicated by the low error measures and ACF1.
 
 
-#### Model Comparison
+##### Residual Analysis
 
 ```{r}
-# Comparing Models using AIC and BIC
-models <- list(ar_model, ma_model, arma_model1, arma_model2)
-model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)")
+# Perform diagnostics for ARIMA(2,1,1)
+tsdiag(arma_model2, gof.lag = 10, main = "Diagnostics for ARIMA(2,1,1)")
 
-aic_values <- sapply(models, AIC)
-bic_values <- sapply(models, BIC)
-
-comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
-print(comparison)
+# Q-Q plot for ARIMA(2,1,1)
+residuals_arma211 <- residuals(arma_model2)
+qqnorm(residuals_arma211, main = "Q-Q Plot of Residuals for ARIMA(2,1,1)")
+qqline(residuals_arma211, col = "red")
 ```
 
 
-### Residual Analysis
+
 ```{r}
-# Enhanced residual analysis using tsdiag
-# AR(2)
-tsdiag(ar_model)
+# ARMA(2,1,2) Model
+arma_model3 <- Arima(aaplmonthly_ts, order=c(2,1,2))
+summary(arma_model3)
 ```
 
 
+- The AR(2) term seems significant, while the AR(1) and MA(2) terms are less impactful. The MA(1) term is strong, suggesting reliance on correcting the previous period's error.
+- The residual variance (sigma^2) is slightly higher than desired, indicating some unexplained variability. The ACF1 is close to zero, which is positive, indicating little remaining autocorrelation.
+- Compared to the ARIMA(2,1,1) model, this model has slightly higher AIC and BIC, suggesting it might not fit as well. However, the performance metrics (RMSE, MAE) are competitive, indicating this model is also a valid candidate.
+- While the error measures (MAPE, MPE) show some prediction errors, the model captures the general trend well. Improvements could be made by refining the model or testing alternative specifications.
+
+
+
+##### Residual Analysis
+
 ```{r}
-# Enhanced residual analysis using tsdiag
-# ARIMA(2,1,1)
-tsdiag(arma_model2)
+# Perform diagnostics for ARIMA(2,1,2)
+tsdiag(arma_model3, gof.lag = 10, main = "Diagnostics for ARIMA(2,1,2)")
+
+# Q-Q plot for ARIMA(2,1,2)
+residuals_arma212 <- residuals(arma_model3)
+qqnorm(residuals_arma212, main = "Q-Q Plot of Residuals for ARIMA(2,1,2)")
+qqline(residuals_arma212, col = "red")
 ```
 
 
-### Forecasting
-
-```{r}
-# Forecasting with the AR model
-ar_forecast <- forecast(ar_model, h=12)
-plot(ar_forecast, main="Forecasts from AR(2)")
-```
-
-
-```{r}
-# Forecasting with the ARIMA model
-arma2_forecast <- forecast(arma_model2, h=12)
-plot(arma2_forecast, main="Forecasts from ARIMA(2,1,1)")
-```
 
 
 #### GARCH Models
@@ -256,6 +315,20 @@ fit_garch
 
 
 ```{r}
+# Specify GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 1)), 
+                         distribution.model = "norm")
+
+fit_garch <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garch
+```
+
+
+
+```{r}
 # Plot diagnostics
 plot(fit_garch)
 ```
@@ -264,7 +337,7 @@ plot(fit_garch)
 #### Forecasting
 
 ```{r}
-# Forecasting with the TGARCH model
+# Forecasting with the GARCH model
 forecast_garch <- ugarchforecast(fit_garch, n.ahead=12)
 plot(forecast_garch, which=1)  # Forecast series
 ```
@@ -274,8 +347,8 @@ plot(forecast_garch, which=1)  # Forecast series
 
 ```{r}
 # Comparing Models using AIC and BIC
-models <- list(ar_model, ma_model, arma_model1, arma_model2)
-model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "GARCH")
+models <- list(ar_model, ma_model, arma_model1, arma_model2, arma_model3)
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "ARIMA(2,1,2", "GARCH")
 
 aic_values <- c(sapply(models, AIC), -2.0775)
 bic_values <- c(sapply(models, BIC), -1.9473)
@@ -283,7 +356,6 @@ bic_values <- c(sapply(models, BIC), -1.9473)
 comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
 print(comparison)
 ```
-
 
 
 
