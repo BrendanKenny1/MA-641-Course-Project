@@ -1,0 +1,323 @@
+---
+title: "Apple Stock Data (Monthly 2016-2024)"
+author: "Brianna Cirillo"
+output: html_notebook
+---
+ 
+### Libraries
+
+```{r}
+# Load necessary libraries
+library(forecast)
+library(tseries)
+library(TSA)
+library(tidyverse)
+library(rugarch)
+```
+ 
+
+## AAPL Monthly Data 2016-2024
+### Load & Inspect the Data
+
+```{r}
+# Load the data
+aapl_monthly_data <- read.csv("~/Documents/GitHub/MA-641-Course-Project/AAPL_Monthly2016.csv")
+#aapl_monthly_data <- read.csv("D:/DATA SCIENCE MASTERS/MA 641/project/AAPL_Monthly2016.csv")
+
+# Convert the date column to Date type
+aapl_monthly_data$Date <- as.Date(aapl_monthly_data$Date, format="%Y-%m-%d")
+
+# Inspect the data
+head(aapl_monthly_data)
+summary(aapl_monthly_data)
+```
+
+### Create a Time Series Object
+
+```{r}
+# Create a time series object
+aaplmonthly_ts <- ts(aapl_monthly_data$Close, start=c(2016, 01), end = c(2024, 05), frequency=12) 
+```
+
+
+
+### Descripvtive Analysis
+
+```{r}
+# Descriptive Analysis
+plot(aaplmonthly_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+summary(aaplmonthly_ts)
+boxplot(aaplmonthly_ts ~ cycle(aaplmonthly_ts), main="Seasonal Boxplot of Monthly Apple Stock Prices", ylab="Close Price")
+```
+Time Series Plot:
+
+- There is a clear upward trend in Apple stock prices over the period. The prices show a substantial increase, particularly starting around 2019.
+- There is visible volatility in the stock prices, with fluctuations becoming more pronounced in the later years.
+- The increased volatility may imply higher risk for investors, as the stock prices have larger swings.
+
+Summary:
+
+- The mean and median values suggest that the central tendency of the stock prices is around 73 to 96.
+- The range indicates that the stock price has varied significantly over the period.
+
+Seasonal Boxplot:
+
+- The presence of seasonality suggests that certain months tend to have higher or lower stock prices consistently, which can be crucial for seasonal trading strategies.
+- The seasonal boxplot reveals monthly patterns and variability, suggesting that seasonality should be considered in trading strategies and risk 
+
+
+
+
+### ACF, PACF, & EACF Plots
+
+```{r}
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(aaplmonthly_ts, main="ACF of Monthly Apple Stock Prices", lag.max = 72)
+pacf(aaplmonthly_ts, main="PACF of Monthly Apple Stock Prices", lag.max = 72)
+eacf(aaplmonthly_ts)
+```
+
+
+ACF Plot:
+
+- The gradual decay in the ACF indicates the presence of a trend component in the time series. The series is likely non-stationary.
+- Significant autocorrelations suggest that the data is not random and past values can help predict future values.
+- A high degree of positive autocorrelation at the first few lags implies momentum in the stock prices, which is common in financial time series.
+
+
+PACF Plot:
+
+- The sharp drop after the first lag in the PACF suggests that an AR(1) model may be appropriate for capturing the relationship in the data.
+- The significant first lag indicates that the immediate past value has a strong influence on the current value, while the influence of values further in the past diminishes quickly.
+- This pattern supports the use of a simple autoregressive model, as the complexity beyond the first lag does not add much explanatory power.
+
+
+
+### ADF Test
+
+```{r}
+# Augmented Dickey-Fuller Test
+adf_test <- adf.test(aaplmonthly_ts, alternative="stationary")
+print(adf_test)
+```
+
+
+- Since the p-value is greater than 0.05, we fail to reject the null hypothesis that the time series has a unit root. This indicates that the series is non-stationary.
+- The non-stationarity observed from the ADF test results implies that differencing the time series is necessary to achieve stationarity.
+
+
+
+```{r}
+# Differencing the series if it is not stationary
+if (adf_test$p.value > 0.05) {
+  ts_data_diff <- diff(aaplmonthly_ts, differences=1)
+  adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
+  print(adf_test_diff)
+  
+  # Update the time series data to the differenced series
+  aaplmonthly_ts <- ts_data_diff
+}
+```
+
+
+- Since the p-value is less than 0.05, we reject the null hypothesis that the time series has a unit root. This indicates that the differenced series is stationary.
+- With the differenced series being stationary, it is now suitable for fitting ARIMA models.
+ 
+
+```{r}
+# Time Series Plot after Differencing
+plot(aaplmonthly_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+acf(aaplmonthly_ts, main="ACF of Monthly Apple Stock Prices", lag.max = 96)
+pacf(aaplmonthly_ts, main="PACF of Monthly Apple Stock Prices", lag.max = 96)
+```
+
+- We can see that after differencing the time-series appears to be stationary.
+
+### Fit AR, MA, and ARMA Models
+#### AR Model
+```{r}
+# Fit AR model
+ar_model <- Arima(aaplmonthly_ts, order=c(2,0,0))
+summary(ar_model)
+```
+
+
+- The mean value of 1.6476 indicates the average level around which the time series fluctuates.
+- The standard errors for the coefficients are relatively small, suggesting that the estimates are reasonably precise.
+- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
+
+
+#### MA Model
+```{r}
+# Fit MA model
+ma_model <- Arima(aaplmonthly_ts, order=c(0,0,2))
+summary(ma_model)
+```
+
+
+- The MA(2) model fits the data with a weak positive moving average component.
+- While the error measures such as RMSE and MAE are low, indicating good prediction accuracy, the high MAPE value suggests potential issues with percentage errors possibly due to the inherent volatility in stock prices.
+- THE AIC and BIC values are higher for the AR and MA models
+
+
+#### ARMA Model
+```{r}
+# Fit ARMA model
+arma_model1 <- Arima(aaplmonthly_ts, order=c(1,1,1))
+summary(arma_model1)
+```
+
+
+- The ARIMA(1,1,1) model provides a slightly more complex representation by combining AR and MA components. However, the improvement in model fit compared to the simpler AR(2) model is minimal, as indicated by similar log likelihood, AIC, and BIC values. 
+- The high standard errors for the AR and MA coefficients suggest potential issues with estimate precision. 
+- Overall, the AR(2) model might be preferred for its simplicity and comparable fit.
+
+
+
+```{r}
+# ARMA(2,1) Model
+arma_model2 <- Arima(aaplmonthly_ts, order=c(2,1,1))
+summary(arma_model2)
+```
+
+
+- The ARIMA(2,1,1) model introduces additional AR and MA components compared to simpler models, but the improvement in fit is minimal. 
+- The AIC and BIC values are slightly lower, and the standard errors for the AR(2) and MA(1) coefficients remain relatively high. 
+- Overall, the simpler AR(2) models might be preferred for their comparable fit and simplicity.
+
+```{r}
+arma_model3 <- Arima(aaplmonthly_ts, order=c(2,1,2))
+summary(arma_model3)
+arma_model4 <- Arima(aaplmonthly_ts, order=c(1,1,2))
+
+```
+
+
+#### Model Comparison
+
+```{r}
+# Comparing Models using AIC and BIC
+models <- list(ar_model, ma_model, arma_model1, arma_model2, arma_model4, arma_model3)
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "ARIMA(1,1,2)", "ARIMA(2,1,2)")
+
+aic_values <- sapply(models, AIC)
+bic_values <- sapply(models, BIC)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
+
+
+### Residual Analysis
+```{r}
+# Enhanced residual analysis using tsdiag
+# AR(2)
+model_residuals <- residuals(arma_model2)
+#acf(residuals(arma_model1), main="ACF of SARIMA Model Residuals", lag.max = 96)
+acf(model_residuals, lag.max = 96)
+qqnorm(window(residuals(arma_model2)))
+qqline(window(residuals(arma_model2)))
+```
+```{r}
+qqnorm(window(residuals(arma_model2)))
+qqline(window(residuals(arma_model2)))
+shapiro.test(residuals(arma_model2))
+ljung_box_test <- Box.test(residuals(arma_model2), type = "Ljung-Box")
+print(ljung_box_test)
+```
+
+
+```{r}
+# Enhanced residual analysis using tsdiag
+# ARIMA(2,1,1)
+tsdiag(arma_model2)
+```
+
+
+### Forecasting
+
+```{r}
+# Forecasting with the AR model
+ar_forecast <- forecast(ar_model, h=12)
+plot(ar_forecast, main="Forecasts from AR(2)")
+```
+
+
+```{r}
+# Forecasting with the ARIMA model
+arma2_forecast <- forecast(arma_model2, h=12)
+plot(arma2_forecast, main="Forecasts from ARIMA(2,1,1)")
+```
+
+
+#### GARCH Models
+
+```{r}
+# Create a time series object
+aaplmonthly_ts2 <- ts(aapl_monthly_data$Close, start=c(2016, 01), end = c(2024, 05), frequency=12) 
+# Calculate returns for modeling
+returns <- diff(log(aaplmonthly_ts2))
+returns <- returns[!is.na(returns)]
+plot(returns, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time", type="l")
+```
+
+
+```{r}
+# Specify GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(1, 0)), 
+                         distribution.model = "norm")
+
+fit_garch <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garch
+```
+
+
+```{r}
+# Plot diagnostics
+plot(fit_garch)
+```
+
+
+#### Forecasting
+
+```{r}
+# Forecasting with the TGARCH model
+forecast_garch <- ugarchforecast(fit_garch, n.ahead=12)
+plot(forecast_garch, which=1)  # Forecast series
+```
+
+
+#### Model Comparison
+
+```{r}
+# Comparing Models using AIC and BIC
+models <- list(ar_model, ma_model, arma_model1, arma_model2)
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "GARCH")
+
+aic_values <- c(sapply(models, AIC), -2.0775)
+bic_values <- c(sapply(models, BIC), -1.9473)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
