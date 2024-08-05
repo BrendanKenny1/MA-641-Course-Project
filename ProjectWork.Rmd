@@ -2,10 +2,10 @@
 title: "Project Work"
 author: "Kimberley Maldonado, Brendan Kenny, Emily Su, Brianna Cirillo"
 output:
+  pdf_document: default
+  html_notebook: default
   html_document:
     df_print: paged
-  html_notebook: default
-  pdf_document: default
 ---
 
 ### Libraries
@@ -314,9 +314,23 @@ summary(garch_fit)
 # Evaluate the Combined Model
 # Check residuals of the SARIMA model
 checkresiduals(adjusted_arima_model_2)
+```
 
+```{r}
 # Plot diagnostic plots for GARCH model
-plot(garch_fit)
+# Plot diagnostics
+plot(garch_fit, which = 1)
+plot(garch_fit, which = 2)
+plot(garch_fit, which = 3)
+plot(garch_fit, which = 4)
+plot(garch_fit, which = 5)
+plot(garch_fit, which = 6)
+plot(garch_fit, which = 7)
+plot(garch_fit, which = 8)
+plot(garch_fit, which = 9)
+plot(garch_fit, which = 10)
+plot(garch_fit, which = 11)
+plot(garch_fit, which = 12)
 
 # Check ACF of standardized residuals from the GARCH model
 garch_residuals <- residuals(garch_fit, standardize = TRUE)
@@ -331,7 +345,7 @@ chart.ACFplus(garch_residuals_xts, main = "ACF of Standardized GARCH Residuals")
 chart.RollingPerformance(garch_residuals_xts, width = 12, FUN = "sd", main = "Rolling Volatility (Standard Deviation)")
 ```
 The ACF and PACF of the Standardized Residuals show no significant spikes except for the first, indicating that the residuals are uncorrelated and resemble white noise. In the QQ plot, the points fall close to the 45-degree line along the center and top-right-most portion of the graph, albeit with significant deviations at the bottom tail.
-
+ 
 
 ```{r}
 # Set the maximum number of lags for the Ljung-Box test
@@ -872,7 +886,18 @@ Model Fit:
 
 ```{r}
 # Plot diagnostics
-plot(fit_garch)
+plot(fit_garch, which = 1)
+plot(fit_garch, which = 2)
+plot(fit_garch, which = 3)
+plot(fit_garch, which = 4)
+plot(fit_garch, which = 5)
+plot(fit_garch, which = 6)
+plot(fit_garch, which = 7)
+plot(fit_garch, which = 8)
+plot(fit_garch, which = 9)
+plot(fit_garch, which = 10)
+plot(fit_garch, which = 11)
+plot(fit_garch, which = 12)
 ```
 
 News Impact Curve:
@@ -928,7 +953,6 @@ Series with 1% VaR Limits:
 
 - The green and red lines represent the upper and lower VaR limits, respectively. 
 - Overall the model fits well, the returns rarely exceed these limits, indicating that the model provides a good estimate of the risk.
-
 
 
 
