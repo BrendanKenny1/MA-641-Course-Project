@@ -284,6 +284,10 @@ library(xts)
 library(quantmod)
 ```
 
+The following dataset is part of the Advance Monthly Retail Trade Survery conducted by the U.S Census Bureau, retrieved from FRED and measures the retail trade activity in the United States. It provides an early estimate of monthly sales for retail and food service companies capturing consumer demand for goods and services. 
+
+The RSXFSN data series measures the dollar value of sales and is reported on millions of dollars. This data is not seasonally adjusted and is released monthly. The period of observation for this project spans a 10 year period from January 2014 to May 2024, totalling 126 observations. 
+
 ```{r}
 file_path <- "C:\\Users\\maldo\\Downloads\\RSXFSN.csv"
 
@@ -296,8 +300,11 @@ retail_sales_data$DATE <- as.Date(retail_sales_data$DATE, format="%Y-%m-%d")
 ```{r}
 # Display the structure of the data to verify the DATE column type
 str(retail_sales_data)
-
+```
+```{r}
 head(retail_sales_data)
+```
+```{r}
 summary(retail_sales_data)
 
 # Check the number of rows in the original dataset
@@ -315,13 +322,16 @@ ggplot(data = retail_sales_data, aes(x = DATE, y = RSXFSN)) +
        y = "Retail Sales") +
   theme_minimal()
 ```
+The time series displays a noticeable upward trend in retails sales with periodic spikes in the final months of the year, indicating the presence of seasonality.
+
 ### Box Plot
 ```{r}
 # Create a time series object
 ts_data <- ts(retail_sales_data$RSXFSN, start = c(2014, 12), frequency = 12)
 
-boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Retail Sales", ylab = "Sales")
+boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Retail Sales", ylab = "Sales", xlab = "Month")
 ```
+Although it makes sense that the month of November would see peak sales due to Black Friday and Cyber Monday events, it seems counter-intuitive that December would have such a stark decrease in sales, considering the holiday season.
 
 ### ACF and PACF of Original Data
 ```{r}
@@ -331,6 +341,12 @@ acf(retail_sales_data$RSXFSN, main = "ACF of Monthly Retail Sales", lag.max = 10
 # Create PACF plot
 pacf(retail_sales_data$RSXFSN, main = "PACF of Monthly Retail Sales", lag.max = 100)
 ```
+```{r}
+adf_test_result <- adf.test(retail_sales_data$RSXFSN)
+print(adf_test_result)
+```
+The data shows clear nonstationarity. Therefore, we proceed with differencing measures to achieve stationarity.
+
 ## Obtaining Stationary Time Series
 
 ### One order of differencing
@@ -354,6 +370,30 @@ adf_test_result <- adf.test(diff_series)
 print(adf_test_result)
 ```
 p-value from ADF = 0.01 < 0.05 -> stationary
+
+### Log transformation and one order of differencing
+```{r}
+# Take log transformation of data
+log_series <- log(retail_sales_data$RSXFSN)
+
+# Apply differencing
+diff_log_series <- diff(log_series)
+
+# Plot the differenced data
+diff_log_data <- data.frame(DATE = retail_sales_data$DATE[-1], Difference = diff_log_series)
+
+ggplot(data = diff_data, aes(x = DATE, y = Difference)) +
+  geom_line(color = "red") +
+  labs(title = "Differenced Time Series of Monthly Retail Sales",
+       x = "Date",
+       y = "Difference in Retail Sales") +
+  theme_minimal()
+```
+```{r}
+adf_test_result <- adf.test(diff_log_series)
+print(adf_test_result)
+```
+One order of differencing, both with and without taking the logarithmic transformation, achieves stationarity.
 
 ### One order seasonal differencing
 ```{r}
@@ -396,6 +436,7 @@ ggplot(data = doubly_diff_data, aes(x = DATE, y = Difference)) +
 adf_test_result <- adf.test(combined_diff_data)
 print(adf_test_result)
 ```
+Taking a seasonal difference of the data, and then an additional order of differencing produces the time series most resembling white noise, albeit with clear volatility between 2020 and 2022. This can perhaps be explained by the COVID-19 pandemic, which saw many store closures and and ceasing of retail activities. We now investigate the ACF and PACF plots with this data.
 
 #### ACF and PACF
 ```{r}
@@ -405,11 +446,13 @@ acf(combined_diff_data, main="ACF of Differenced RSXFSN", lag.max=50)
 # PACF plot for differenced data
 pacf(combined_diff_data, main="PACF of Differenced RSXFSN", lag.max=50)
 ```
+The ACF displays an abrupt cut-off after lag 12, and the PACF gradually decays, which is indicative of a Moving Average model. 
+ 
 #### Fitting a SARIMA Model
 ```{r}
 # Fit a seasonal ARIMA model manually
 # Non-seasonal part: ARIMA(0,0,2), Seasonal part: ARIMA(0,2,12)[12]
-adjusted_arima_model <- Arima(combined_diff_data, order = c(0, 0, 2), seasonal = c(0, 2, 12))
+adjusted_arima_model <- Arima(combined_diff_data, order = c(0, 0, 2), seasonal = c(0, 0, 12))
 
 # Summary of the adjusted ARIMA model
 summary(adjusted_arima_model)
@@ -420,6 +463,22 @@ checkresiduals(adjusted_arima_model)
 # Use tsdiag to generate diagnostic plots
 tsdiag(adjusted_arima_model)
 ```
+
+```{r}
+# Fit a seasonal ARIMA model
+# Non-seasonal part: ARIMA(2,1,0), Seasonal part: ARIMA(1,1,1)[12]
+adjusted_arima_model_2 <- Arima(combined_diff_data, order = c(0, 0, 12), seasonal = c(0, 0, 10))
+
+# Summary of the adjusted ARIMA model
+summary(adjusted_arima_model_2)
+
+# Diagnostic checking of the adjusted model
+checkresiduals(adjusted_arima_model_2)
+
+# Use tsdiag to generate diagnostic plots
+tsdiag(adjusted_arima_model_2)
+```
+The residuals' ACF and PACF plots indicate that the model's residuals are mostly uncorrelated, suggesting a good fit, though the SARIMA(0,0,12)(0,0,10) is slightly better with an AIC of 2521.81 versus 2545.26. While the SARIMA model captures the seasonality and general trend, it may not fully account for the extreme fluctuations seen in the historical data. For better predictions, it might be necessary to explore other models or include additional explanatory variables.
 
 ### Investigating GARCH Model
 
@@ -443,12 +502,12 @@ ggplot(data = squared_returns_data, aes(x = DATE, y = Squared_Returns)) +
        y = "Squared Returns") +
   theme_minimal()
 ```
-Highly Volatile
+The squared returns of the monthly sales data shows much periodic volatility, which indicates that the data is a strong candidate for the GARCH model.
 
 #### ACF and PACF of Squared Residuals
 ```{r}
 # Calculate residuals
-arima_residuals <- residuals(adjusted_arima_model)
+arima_residuals <- residuals(adjusted_arima_model_2)
 
 # Square the residuals to focus on volatility
 squared_arima_residuals <- arima_residuals^2
@@ -459,64 +518,120 @@ Acf(squared_arima_residuals, main="ACF of Squared Residuals")
 # Plot PACF of squared residuals
 Pacf(squared_arima_residuals, main="PACF of Squared Residuals")
 ```
-One significant lag in both ACF and PACF <- employ GARCH
+The ACF of the squared residuals shows significant autocorrelation at various lags, suggesting periods of high volatility followed by high volatility and periods of low volatility follow periods of low volatility. This pattern is indicative of volatility clustering, a characteristic of financial time series data. The presence of significant autocorrelation in squared residuals also suggests nonlinearity in variance, highlighting a need for models like GARCH.
+
+#### Fitting the GARCH Model to log-transformed and differenced data (DO NOT CALL)
 ```{r}
-# Check convergence
-if(garch_fit@fit$convergence != 0) {
-  print("The model did not converge. You may need to change the optimization method or initial values.")
-}
+# # Check convergence
+# if(garch_fit@fit$convergence != 0) {
+#   print("The model did not converge. You may need to change the optimization method or initial values.")
+# }
 ```
 
 ```{r}
-data_xts <- xts(retail_sales_data$RSXFSN, order.by = as.Date(retail_sales_data$DATE))
+# data_xts <- xts(retail_sales_data$RSXFSN, order.by = as.Date(retail_sales_data$DATE))
 
-# Calculate daily returns
-returns <- diff(log(data_xts), lag = 1)
+# # Calculate daily returns
+# returns <- diff(log(data_xts), lag = 1)
 
-# Remove NA values that result from differencing
-returns <- na.omit(returns)
+# # Remove NA values that result from differencing
+# returns <- na.omit(returns)
 
-# Plot returns and volatility
-chartSeries(returns, main = "Log Returns of RSXFSN")
+# # Plot returns and volatility
+# chartSeries(returns, main = "Log Returns of RSXFSN")
 
-#Plotting Rolling Volatility
-chart.RollingPerformance(returns, width = 12, FUN = "sd", main = "Rolling Standard Deviation")
+# # Plotting Rolling Volatility
+# chart.RollingPerformance(returns, width = 12, FUN = "sd", main = "Rolling Standard Deviation")
 
-# Calculate and plot additional risk metrics
-charts.PerformanceSummary(returns, main = "Performance Summary")
+# # Calculate and plot additional risk metrics
+# charts.PerformanceSummary(returns, main = "Performance Summary")
 
-# Now check the properties again before fitting a GARCH model
-spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
-                   mean.model = list(armaOrder = c(0, 2), include.mean = FALSE),
-                   distribution.model = "norm")
-garch_fit <- ugarchfit(spec = spec, data = returns)
+# # Now check the properties again before fitting a GARCH model
+# spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+#                    mean.model = list(armaOrder = c(0, 2), include.mean = FALSE),
+#                    distribution.model = "norm")
+# garch_fit <- ugarchfit(spec = spec, data = returns)
+# summary(garch_fit)
+```
+
+```{r}
+#plot(garch_fit)
+```
+
+
+```{r}
+# # Set the maximum number of lags for the Ljung-Box test
+# max_lags <- 20
+
+# # Initialize a vector to store p-values
+# p_values <- numeric(max_lags)
+
+# # Calculate the Ljung-Box test p-values for each lag
+# for (lag in 1:max_lags) {
+#   lb_test <- Box.test(garch_residuals, lag = lag, type = "Ljung-Box", fitdf = 0)
+#   p_values[lag] <- lb_test$p.value
+# }
+
+# # Create a plot of p-values
+# plot(1:max_lags, p_values, type = "b", pch = 19, col = "blue",
+#      xlab = "Lag", ylab = "p-value",
+#      main = "Ljung-Box Test p-values for Standardized Residuals")
+# abline(h = 0.05, col = "red", lty = 2)  # Add a line at the 0.05 significance level
+
+# # Creating a dataframe for plotting
+# residuals_df <- data.frame(Residuals = as.numeric(garch_residuals))
+```
+
+#### Fitting the GARCH Model to seasonally differenced data plus an additional order of differencing (CALL THIS INSTEAD)
+```{r}
+combined_xts <- xts(combined_diff_data, order.by = as.Date(time(combined_diff_data)))
+
+# Fit the SARIMA model
+# Extract residuals from the SARIMA model
+sarima_residuals <- residuals(adjusted_arima_model_2)
+
+# Extract dates from the combined_xts
+dates <- index(combined_xts)
+
+# Convert SARIMA residuals to xts format
+sarima_residuals_xts <- xts(sarima_residuals, order.by = dates)
+
+# Fit a GARCH model on the SARIMA residuals
+# Define a simple GARCH(1,1) model
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = FALSE),
+  distribution.model = "norm"
+)
+
+# Fit the GARCH model on SARIMA residuals
+garch_fit <- ugarchfit(spec = garch_spec, data = sarima_residuals_xts)
+
+# Summarize GARCH model fit
 summary(garch_fit)
+
+# Evaluate the Combined Model
+# Check residuals of the SARIMA model
+checkresiduals(adjusted_arima_model_2)
+
+# Plot diagnostic plots for GARCH model
+plot(garch_fit)
+
+# Check ACF of standardized residuals from the GARCH model
+garch_residuals <- residuals(garch_fit, standardize = TRUE)
+
+# Convert GARCH residuals to xts format, adjust for any differencing
+garch_residuals_xts <- xts(garch_residuals, order.by = dates[1:length(garch_residuals)])  # Adjust index if necessary
+
+# Plot ACF using PerformanceAnalytics
+chart.ACFplus(garch_residuals_xts, main = "ACF of Standardized GARCH Residuals")
+
+# Plot rolling volatility to assess dynamic volatility over time
+chart.RollingPerformance(garch_residuals_xts, width = 12, FUN = "sd", main = "Rolling Volatility (Standard Deviation)")
 ```
+The ACF and PACF of the Standardized Residuals show no significant spikes except for the first, indicating that the residuals are uncorrelated and resemble white noise. In the QQ plot, the points fall close to the 45-degree line along the center and top-right-most portion of the graph, albeit with significant deviations at the bottom tail.
 
 ```{r}
-garch_fit
-```
-
-
-```{r}
-# Assuming 'garch_fit' is your fitted GARCH model object
-garch_residuals <- residuals(garch_fit, standardize = TRUE)  # Standardized residuals
-
-# Convert to an xts object for easier plotting
-residuals_xts <- xts(garch_residuals, order.by = index(returns))
-
-# Plot the residuals
-plot(residuals_xts, main = "Standardized Residuals from GARCH(1,1) Model", col = "blue", ylab = "Residuals")
-
-# You can also plot a histogram to visualize the distribution of residuals
-hist(garch_residuals, breaks = 30, main = "Histogram of Standardized Residuals", xlab = "Residuals", col = "lightblue")
-
-# Plot ACF and PACF of residuals to check for remaining autocorrelation
-acf(garch_residuals, main = "ACF of Standardized Residuals")
-pacf(garch_residuals, main = "PACF of Standardized Residuals")
-
-garch_residuals <- residuals(garch_fit, standardize = TRUE)  # Standardized residuals
-
 # Set the maximum number of lags for the Ljung-Box test
 max_lags <- 20
 
@@ -537,15 +652,32 @@ abline(h = 0.05, col = "red", lty = 2)  # Add a line at the 0.05 significance le
 
 # Creating a dataframe for plotting
 residuals_df <- data.frame(Residuals = as.numeric(garch_residuals))
+```
+```{r}
+# Specify the number of periods you want to forecast
+forecast_horizon <- 12
 
-# Generate Q-Q plot using ggplot2
-ggplot(residuals_df, aes(sample = Residuals)) +
-  stat_qq() +
-  stat_qq_line(colour = "red") +
-  ggtitle("Q-Q Plot of Standardized Residuals") +
-  theme_minimal() +
-  xlab("Theoretical Quantiles") +
-  ylab("Sample Quantiles")
+# Forecast future values using the SARIMA model
+sarima_forecast <- forecast(adjusted_arima_model_2, h = forecast_horizon)
+
+# Plot SARIMA forecast
+plot(sarima_forecast, main = "SARIMA Forecast")
+
+# Step 4: Forecast using the GARCH model
+garch_forecast <- ugarchforecast(garch_fit, n.ahead = forecast_horizon)
+
+# Extract forecasted volatility (standard deviation) from the GARCH model
+volatility_forecast <- sigma(garch_forecast)
+
+# Print volatility forecast
+print(volatility_forecast)
+
+# Combine SARIMA forecast with GARCH volatility forecast
+plot(sarima_forecast, main = "Forecasted Mean with SARIMA", xlab = "Time", ylab = "Values")
+lines(volatility_forecast, col = "red", lty = 2)
+
+legend("topright", legend = c("SARIMA Mean", "GARCH Volatility"), col = c("blue", "red"), lty = 1:2)
+```
 
 
 
