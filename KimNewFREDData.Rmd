@@ -1,0 +1,174 @@
+```{r}
+# Load necessary libraries
+library(forecast)
+library(tseries)
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(zoo)
+library(TSA)
+library(rugarch)
+library(forecast)
+library(PerformanceAnalytics)
+library(xts)
+library(quantmod)
+```
+
+## FRED Monthly Retail Sales
+### Load & Inspect the Data
+
+```{r}
+file_path <- "C:\\Users\\maldo\\Downloads\\RSXFSN.csv"
+
+retail_sales_data <- read_csv(file_path)
+
+# Convert the DATE column to Date type
+retail_sales_data$DATE <- as.Date(retail_sales_data$DATE, format="%Y-%m-%d")
+```
+```{r}
+head(retail_sales_data)
+summary(retail_sales_data)
+
+# Check the number of rows in the original dataset
+num_data_points <- nrow(retail_sales_data)
+cat("Number of data points in the original dataset:", num_data_points, "\n")
+```
+
+### Descriptive Analysis
+#### Time Series Plot
+```{r}
+# Plot the original data
+ggplot(data = retail_sales_data, aes(x = DATE, y = RSXFSN)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series of Monthly Retail Sales",
+       x = "Date",
+       y = "Retail Sales") +
+  theme_minimal()
+```
+#### Box Plot
+```{r}
+# Create a time series object
+ts_data <- ts(retail_sales_data$RSXFSN, start = c(2014, 12), frequency = 12)
+
+boxplot(ts_data ~ cycle(ts_data), main="Seasonal Boxplot of Monthly Retail Sales", ylab = "Sales", xlab = "Month")
+```
+
+#### Seasonal differencing plut additional first differencing on seasonally differenced data
+```{r}
+# Apply seasonal differencing to the RSXFSN series
+seasonal_diff_series <- diff(retail_sales_data$RSXFSN, lag = 12)
+
+# Perform additional first differencing on seasonally differenced data to ensure stationarity
+combined_diff_data <- diff(seasonal_diff_series)
+
+# Create a data frame for the seasonally differenced data
+doubly_diff_data <- data.frame(DATE = retail_sales_data$DATE[-(1:13)], Difference = combined_diff_data)
+
+# Plot the seasonally differenced data
+ggplot(data = doubly_diff_data, aes(x = DATE, y = Difference)) +
+  geom_line(color = "purple") +
+  labs(title = "Combined Seasonally Differenced Time Series of Monthly Retail Sales",
+       x = "Date",
+       y = "Seasonal Difference in Retail Sales") +
+  theme_minimal()
+```
+
+#### ACF and PACF
+```{r}
+# Plot ACF for the differenced data
+acf(combined_diff_data, main="ACF of Differenced RSXFSN", lag.max=50)
+
+# PACF plot for differenced data
+par(mar=c(5, 5, 4, 2) + 0.1)
+pacf(combined_diff_data, main="PACF of Differenced RSXFSN", lag.max=50)
+```
+
+```{r}
+arima010=arima(combined_diff_data,order=c(0,1,0))
+summary(arima010)
+```
+```{r}
+arima110=arima(combined_diff_data,order=c(1,1,0))
+summary(arima110)
+```
+```{r}
+arima011=arima(combined_diff_data,order=c(0,1,1))
+summary(arima011)
+```
+
+```{r}
+arima111=arima(combined_diff_data,order=c(1,1,1))
+summary(arima111)
+```
+
+```{r}
+arima012=arima(combined_diff_data,order=c(0,1,2))
+summary(arima012)
+```
+```{r}
+arima112=arima(combined_diff_data,order=c(1,1,2))
+summary(arima112)
+```
+```{r}
+arima210=arima(combined_diff_data,order=c(2,1,0))
+summary(arima210)
+```
+```{r}
+arima211=arima(combined_diff_data,order=c(2,1,1))
+summary(arima211)
+```
+```{r}
+arima212=arima(combined_diff_data,order=c(2,1,2))
+summary(arima212)
+```
+```{r}
+adjusted_arima_model_2 <- Arima(combined_diff_data, order = c(2, 1, 2))
+
+# Summary of the adjusted ARIMA model
+print(summary(adjusted_arima_model_2))
+
+# Extract residuals from the ARIMA model and square them
+residuals <- residuals(adjusted_arima_model_2)
+
+# Diagnostic checking of the squared residuals
+checkresiduals(residuals)
+
+# Use tsdiag to generate diagnostic plots with squared residuals
+tsdiag(adjusted_arima_model_2, gof.lag = 20)
+
+# Plot squared residuals
+autoplot(squared_residuals) +
+  labs(title = "Squared Residuals of the Adjusted ARIMA Model",
+       x = "Time",
+       y = "Squared Residuals") +
+  theme_minimal()
+```
+
+```{r}
+# ACF plot of squared residuals
+acf_plot <- acf(residuals, main = "ACF of Residuals")
+
+# PACF plot of squared residuals
+pacf_plot <- pacf(residuals, main = "PACF of Residuals")
+```
+
+```{r}
+# Extract residuals from the ARIMA model and square them
+squared_residuals <- residuals(adjusted_arima_model_2)^2
+
+res.arima212=arima212$res
+squared.res.arima212=res.arima212^2
+par(mfcol=c(3,1))
+plot(squared.res.arima212,main='Squared Residuals')
+
+# ACF plot of squared residuals
+acf_plot <- acf(squared_residuals, main = "ACF of Squared Residuals")
+
+# PACF plot of squared residuals
+pacf_plot <- pacf(squared_residuals, main = "PACF of Squared Residuals")
+```
+
+```{r}
+
+```
+
