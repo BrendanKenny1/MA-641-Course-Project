@@ -538,7 +538,7 @@ PACF Plot:
 EACF Plot:
 
 - ARIMA(1,0,1): Due to the significant spike at lag 1 in both ACF and PACF plots.
-- ARIMA(0,0,1): Due to the initial spikes in the ACF and a quickly decaying PACF.
+- MA(1): Due to the initial spikes in the ACF and a quickly decaying PACF.
 - ARIMA(1,0,0): Due to the AR component suggested by PACF.
 - ARIMA(2,0,1) or ARIMA(1,0,2):  EACF indicates potential combined AR and MA terms.
 
@@ -831,7 +831,7 @@ Ljung-Box Test:
 - Since the p-value is greater than 0.05, we fail to reject the null hypothesis of no autocorrelation, suggesting that the residuals are indeed white noise.
 
 
-
+ 
 
 #### GARCH Models
 
@@ -848,29 +848,15 @@ plot(returns, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time"
 
 
 ```{r}
-# Specify GARCH(1,1) model
+# Specify ARMA(1,0)-GARCH(1,1) model
 spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
                          mean.model = list(armaOrder = c(1, 0)), 
                          distribution.model = "norm")
 
-fit_garch <- ugarchfit(spec = spec_garch, data = returns)
+fit_garchAR1 <- ugarchfit(spec = spec_garch, data = returns)
 
 # Display the fit summary
-fit_garch
-```
-
-
-
-```{r}
-# Specify GARCH(1,1) model
-spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
-                         mean.model = list(armaOrder = c(2, 1)), 
-                         distribution.model = "norm")
-
-fit_garch <- ugarchfit(spec = spec_garch, data = returns)
-
-# Display the fit summary
-fit_garch
+fit_garchAR1
 ```
 
 Model Fit:
@@ -881,6 +867,19 @@ Model Fit:
 - The stability of individual parameters suggests the model's robustness over time, though there is a slight indication of overall instability.
 - The model is useful for forecasting future volatility and capturing the volatility clustering typical in financial time series like stock prices.
 
+
+
+```{r}
+# Specify ARMA(2,1)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 1)), 
+                         distribution.model = "norm")
+
+fit_garchARMA21 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garchARMA21
+```
 
 
 
@@ -955,12 +954,77 @@ Series with 1% VaR Limits:
 - Overall the model fits well, the returns rarely exceed these limits, indicating that the model provides a good estimate of the risk.
 
 
+```{r}
+# Specify ARMA(2,0)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 0)), 
+                         distribution.model = "norm")
+
+fit_garchAR2 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garchAR2
+```
+
+
+```{r}
+# Specify ARMA(0,2)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(0, 2)), 
+                         distribution.model = "norm")
+
+fit_garchMA2 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garchMA2
+```
+
+```{r}
+# Extract standardized residuals
+std_residuals <- residuals(fit_garchMA2, standardize = TRUE)
+
+# Remove time index, if present
+std_residuals <- as.numeric(std_residuals)
+
+checkresiduals(std_residuals)
+```
+
+
+
+```{r}
+# Plot diagnostics
+plot(fit_garchMA2, which = 1)
+plot(fit_garchMA2, which = 2)
+plot(fit_garchMA2, which = 3)
+plot(fit_garchMA2, which = 4)
+plot(fit_garchMA2, which = 5)
+plot(fit_garchMA2, which = 6)
+plot(fit_garchMA2, which = 7)
+plot(fit_garchMA2, which = 8)
+plot(fit_garchMA2, which = 9)
+plot(fit_garchMA2, which = 10)
+plot(fit_garchMA2, which = 11)
+plot(fit_garchMA2, which = 12)
+```
+
+
+```{r}
+# Specify ARMA(2,2)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 2)), 
+                         distribution.model = "norm")
+
+fit_garchARMA22 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Display the fit summary
+fit_garchARMA22
+```
 
 #### Forecasting
 
 ```{r}
 # Forecasting with the GARCH model
-forecast_garch <- ugarchforecast(fit_garch, n.ahead=12)
+forecast_garch <- ugarchforecast(fit_garchMA2, n.ahead=12)
 plot(forecast_garch, which=1)  # Forecast series
 ```
 
@@ -970,12 +1034,26 @@ plot(forecast_garch, which=1)  # Forecast series
 - Since the historical series ends within the red line and yellow bands, it suggests that the model is capturing the central tendency of the time series well. However, the increasing width of the bands highlights that while the model expects less volatility, there is still considerable uncertainty about future values.
 - 
 
+#### Model Comparison GARCH
+
+```{r}
+# Comparing Models using AIC and BIC
+model_names <- c("ARFIMA(1,0)-GARCH(1,1)", "ARFIMA(2,0)-GARCH(1,1)", "ARFIMA(0,2)-GARCH(1,1)", "ARFIMA(2,1)-GARCH(1,1)", "ARFIMA(2,2)-GARCH(1,1)")
+
+aic_values <- c(-2.0775, -2.0822, -2.0873, -2.0705, -2.0843)
+bic_values <- c(-1.9473, -1.9259, -1.9310, -1.8882, -1.8759)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
+
+
 #### Model Comparison
 
 ```{r}
 # Comparing Models using AIC and BIC
 models <- list(ar_model, ma_model, arma_model1, arma_model2, arma_model3)
-model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "ARIMA(2,1,2", "GARCH")
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "ARIMA(2,1,2)", "GARCH")
 
 aic_values <- c(sapply(models, AIC), -2.0775)
 bic_values <- c(sapply(models, BIC), -1.9473)
