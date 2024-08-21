@@ -1,0 +1,249 @@
+---
+title: "AAPL R Code"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,
+                      results = "hide")
+```
+
+
+```{r, results = 'hide', message=FALSE, warning=FALSE}
+# Load necessary libraries
+library(forecast)
+library(tseries)
+library(tidyverse)
+library(readr)
+library(ggplot2)
+library(zoo)
+library(TSA)
+library(rugarch)
+library(forecast)
+library(PerformanceAnalytics)
+library(xts)
+library(quantmod)
+```
+
+## AAPL Monthly Data 2016-2024
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# Load & Inspect the Data
+# Load the data
+aapl_monthly_data <- read.csv("~/Documents/GitHub/MA-641-Course-Project/AAPL_Monthly2016.csv")
+
+# Convert the date column to Date type
+aapl_monthly_data$Date <- as.Date(aapl_monthly_data$Date, format="%Y-%m-%d")
+
+# Inspect the data
+head(aapl_monthly_data)
+summary(aapl_monthly_data)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# Create a time series object
+aaplmonthly_ts <- ts(aapl_monthly_data$Close, start=c(2016, 01), end = c(2024, 05), frequency=12) 
+
+# Descriptive Analysis
+plot(aaplmonthly_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+summary(aaplmonthly_ts)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(aaplmonthly_ts, main="ACF of Monthly Apple Stock Prices", lag.max = 72)
+pacf(aaplmonthly_ts, main="PACF of Monthly Apple Stock Prices", lag.max = 72)
+eacf(aaplmonthly_ts)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# Augmented Dickey-Fuller Test
+adf_test <- adf.test(aaplmonthly_ts, alternative="stationary")
+print(adf_test)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# Differencing the series if it is not stationary
+if (adf_test$p.value > 0.05) {
+  ts_data_diff <- diff(aaplmonthly_ts, differences=1)
+  adf_test_diff <- adf.test(ts_data_diff, alternative="stationary")
+  print(adf_test_diff)
+  
+  # Update the time series data to the differenced series
+  aaplmonthly_ts <- ts_data_diff
+}
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# Time Series Plot after Differencing
+plot(aaplmonthly_ts, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time")
+
+# ACF and PACF Plots
+par(mar=c(5, 5, 4, 2) + 0.1)
+acf(aaplmonthly_ts, main="ACF of Monthly Apple Stock Prices", lag.max = 72)
+pacf(aaplmonthly_ts, main="PACF of Monthly Apple Stock Prices", lag.max = 72)
+eacf(aaplmonthly_ts)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# ARIMA Models
+# Fit AR model
+ar_model <- Arima(aaplmonthly_ts, order=c(2,0,0))
+
+# Fit MA model
+ma_model <- Arima(aaplmonthly_ts, order=c(0,0,2))
+
+# Fit ARMA(1,1,1) model
+arma_model1 <- Arima(aaplmonthly_ts, order=c(1,1,1))
+
+# ARMA(2,1,1) Model
+arma_model2 <- Arima(aaplmonthly_ts, order=c(2,1,1))
+
+# ARMA(2,1,2) Model
+arma_model3 <- Arima(aaplmonthly_ts, order=c(2,1,2))
+
+# Comparing Models using AIC and BIC
+models <- list(ar_model, ma_model, arma_model1, arma_model2, arma_model3)
+model_names <- c("AR", "MA", "ARIMA(1,1,1)", "ARIMA(2,1,1)", "ARIMA(2,1,2)")
+
+aic_values <- c(sapply(models, AIC))
+bic_values <- c(sapply(models, BIC))
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+
+# Perform diagnostics for ARIMA(2,1,1)
+par(mar=c(5, 5, 4, 2) + 0.1)
+tsdiag(arma_model2, gof.lag = 10, main = "Diagnostics for ARIMA(2,1,1)")
+checkresiduals(arma_model2)
+
+# Q-Q plot for ARIMA(2,1,1)
+residuals_arma211 <- residuals(arma_model2)
+qqnorm(residuals_arma211, main = "Q-Q Plot of Residuals for ARIMA(2,1,1)")
+qqline(residuals_arma211, col = "red")
+
+# Forecasting with the ARIMA(2,1,1) model
+arma2_forecast <- forecast(arma_model2, h=12)
+plot(arma2_forecast, main="Forecasts from ARIMA(2,1,1)")
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# GARCH Models
+# Create a time series object
+aaplmonthly_ts2 <- ts(aapl_monthly_data$Close, start=c(2016, 01), end = c(2024, 05), frequency=12) 
+
+# Calculate returns for modeling
+returns <- diff(log(aaplmonthly_ts2))
+returns <- returns[!is.na(returns)]
+plot(returns, main="Monthly Apple Stock Prices", ylab="Close Price", xlab="Time", type="l")
+
+# Specify ARMA(1,0)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(1, 0)), 
+                         distribution.model = "norm")
+
+fit_garchAR1 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Specify ARMA(2,0)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 0)), 
+                         distribution.model = "norm")
+
+fit_garchAR2 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Specify ARMA(0,2)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(0, 2)), 
+                         distribution.model = "norm")
+
+fit_garchMA2 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Specify ARMA(2,1)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 1)), 
+                         distribution.model = "norm")
+
+fit_garchARMA21 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Specify ARMA(2,2)-GARCH(1,1) model
+spec_garch <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(2, 2)), 
+                         distribution.model = "norm")
+
+fit_garchARMA22 <- ugarchfit(spec = spec_garch, data = returns)
+
+# Comparing Models using AIC and BIC
+model_names <- c("ARFIMA(1,0)-GARCH(1,1)", "ARFIMA(2,0)-GARCH(1,1)", "ARFIMA(0,2)-GARCH(1,1)", "ARFIMA(2,1)-GARCH(1,1)", "ARFIMA(2,2)-GARCH(1,1)")
+
+aic_values <- c(-2.0775, -2.0822, -2.0873, -2.0705, -2.0843)
+bic_values <- c(-1.9473, -1.9259, -1.9310, -1.8882, -1.8759)
+
+comparison <- data.frame(Model=model_names, AIC=aic_values, BIC=bic_values)
+print(comparison)
+```
+
+
+```{r, results = 'hide', message=FALSE, fig.show='hide', warning=FALSE}
+# GARCH Model Assumptions Check
+# Extract standardized residuals
+std_residuals <- residuals(fit_garchMA2, standardize = TRUE)
+
+# Remove time index, if present
+std_residuals <- as.numeric(std_residuals)
+checkresiduals(std_residuals)
+
+# Plot diagnostics
+plot(fit_garchMA2, which = 1)
+plot(fit_garchMA2, which = 2)
+plot(fit_garchMA2, which = 3)
+plot(fit_garchMA2, which = 4)
+plot(fit_garchMA2, which = 5)
+plot(fit_garchMA2, which = 6)
+plot(fit_garchMA2, which = 7)
+plot(fit_garchMA2, which = 8)
+plot(fit_garchMA2, which = 9)
+plot(fit_garchMA2, which = 10)
+plot(fit_garchMA2, which = 11)
+plot(fit_garchMA2, which = 12)
+
+# Forecasting with the GARCH model
+forecast_garch <- ugarchforecast(fit_garchMA2, n.ahead=12)
+plot(forecast_garch, which=1)  # Forecast series
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
